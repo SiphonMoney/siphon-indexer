@@ -1,6 +1,52 @@
 import { createConfig } from "ponder";
+import { http, type Transport } from "viem";
 import { MerkleTreeAbi } from "./abis/MerkleTree";
 import { VaultAbi } from "./abis/Vault";
+
+/**
+ * HTTP transport that splits eth_getLogs into ≤maxRange block windows. Free-tier RPCs cap the
+ * range (dRPC 10k, 1rpc 50, free Alchemy 10) with error messages Ponder's retry helper doesn't
+ * always recognize — one oversized request then kills the whole sync. Splitting client-side
+ * makes the cap a non-issue on any provider that allows ~9k ranges.
+ */
+function cappedLogsTransport(url: string, maxRange = 9_000n): Transport {
+  return (args) => {
+    const inner = http(url)(args);
+    return {
+      ...inner,
+      async request(req: { method: string; params?: unknown }): Promise<unknown> {
+        const { method, params } = req;
+        if (method === "eth_getLogs" && Array.isArray(params)) {
+          const filter = params[0] as { fromBlock?: string; toBlock?: string };
+          if (
+            typeof filter?.fromBlock === "string" &&
+            typeof filter?.toBlock === "string" &&
+            filter.fromBlock.startsWith("0x") &&
+            filter.toBlock.startsWith("0x")
+          ) {
+            const from = BigInt(filter.fromBlock);
+            const to = BigInt(filter.toBlock);
+            if (to >= from && to - from + 1n > maxRange) {
+              const out: unknown[] = [];
+              for (let f = from; f <= to; f += maxRange) {
+                const t = f + maxRange - 1n < to ? f + maxRange - 1n : to;
+                const part = (await inner.request({
+                  method,
+                  params: [
+                    { ...filter, fromBlock: `0x${f.toString(16)}`, toBlock: `0x${t.toString(16)}` },
+                  ],
+                } as Parameters<typeof inner.request>[0])) as unknown[];
+                out.push(...part);
+              }
+              return out;
+            }
+          }
+        }
+        return inner.request(req as Parameters<typeof inner.request>[0]);
+      },
+    };
+  };
+}
 
 const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" as const;
 
@@ -31,11 +77,15 @@ export default createConfig({
   chains: {
     base: {
       id: 8453,
-      rpc: req("PONDER_RPC_URL_8453"),
+      rpc: cappedLogsTransport(req("PONDER_RPC_URL_8453")),
+      // Keep well under the RPC key's rate limit (Ponder defaults to 50/s per chain,
+      // which 429s a shared/free Alchemy key when both chains backfill at once).
+      maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
     },
     ethSepolia: {
       id: 11155111,
-      rpc: req("PONDER_RPC_URL_11155111"),
+      rpc: cappedLogsTransport(req("PONDER_RPC_URL_11155111")),
+      maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
     },
   },
   contracts: {
