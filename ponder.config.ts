@@ -10,9 +10,8 @@ function req(name: string): string {
   return v;
 }
 
-function opt(name: string): `0x${string}` | undefined {
-  const v = process.env[name]?.trim();
-  return v ? (v as `0x${string}`) : undefined;
+function reqAddress(name: string): `0x${string}` {
+  return req(name) as `0x${string}`;
 }
 
 function block(name: string, fallback: number): number {
@@ -20,16 +19,9 @@ function block(name: string, fallback: number): number {
   return v ? parseInt(v, 10) : fallback;
 }
 
-// MerkleTree + Vault addresses — run `npm run resolve-addresses` to populate .env
-const baseEthTree = opt("MERKLE_TREE_BASE_ETH");
-const baseUsdcTree = opt("MERKLE_TREE_BASE_USDC");
-const sepoliaEthTree = opt("MERKLE_TREE_SEPOLIA_ETH");
-const sepoliaUsdcTree = opt("MERKLE_TREE_SEPOLIA_USDC");
-
-const baseEthVault = opt("VAULT_BASE_ETH");
-const baseUsdcVault = opt("VAULT_BASE_USDC");
-const sepoliaEthVault = opt("VAULT_SEPOLIA_ETH");
-const sepoliaUsdcVault = opt("VAULT_SEPOLIA_USDC");
+// MerkleTree + Vault addresses — run `npm run resolve-addresses` to populate .env.local
+const baseDeployBlock = block("BASE_DEPLOY_BLOCK", 47_815_995);
+const sepoliaDeployBlock = block("SEPOLIA_DEPLOY_BLOCK", 11_130_700);
 
 export default createConfig({
   database: {
@@ -47,86 +39,54 @@ export default createConfig({
     },
   },
   contracts: {
-    ...(baseEthTree
-      ? {
-          MerkleTreeBaseEth: {
-            abi: MerkleTreeAbi,
-            chain: "base",
-            address: baseEthTree,
-            startBlock: block("BASE_DEPLOY_BLOCK", 47_815_995),
-          },
-        }
-      : {}),
-    ...(baseUsdcTree
-      ? {
-          MerkleTreeBaseUsdc: {
-            abi: MerkleTreeAbi,
-            chain: "base",
-            address: baseUsdcTree,
-            startBlock: block("BASE_DEPLOY_BLOCK", 47_815_995),
-          },
-        }
-      : {}),
-    ...(sepoliaEthTree
-      ? {
-          MerkleTreeSepoliaEth: {
-            abi: MerkleTreeAbi,
-            chain: "ethSepolia",
-            address: sepoliaEthTree,
-            startBlock: block("SEPOLIA_DEPLOY_BLOCK", 11_130_700),
-          },
-        }
-      : {}),
-    ...(sepoliaUsdcTree
-      ? {
-          MerkleTreeSepoliaUsdc: {
-            abi: MerkleTreeAbi,
-            chain: "ethSepolia",
-            address: sepoliaUsdcTree,
-            startBlock: block("SEPOLIA_DEPLOY_BLOCK", 11_130_700),
-          },
-        }
-      : {}),
-    ...(baseEthVault
-      ? {
-          VaultBaseEth: {
-            abi: VaultAbi,
-            chain: "base",
-            address: baseEthVault,
-            startBlock: block("BASE_DEPLOY_BLOCK", 47_815_995),
-          },
-        }
-      : {}),
-    ...(baseUsdcVault
-      ? {
-          VaultBaseUsdc: {
-            abi: VaultAbi,
-            chain: "base",
-            address: baseUsdcVault,
-            startBlock: block("BASE_DEPLOY_BLOCK", 47_815_995),
-          },
-        }
-      : {}),
-    ...(sepoliaEthVault
-      ? {
-          VaultSepoliaEth: {
-            abi: VaultAbi,
-            chain: "ethSepolia",
-            address: sepoliaEthVault,
-            startBlock: block("SEPOLIA_DEPLOY_BLOCK", 11_130_700),
-          },
-        }
-      : {}),
-    ...(sepoliaUsdcVault
-      ? {
-          VaultSepoliaUsdc: {
-            abi: VaultAbi,
-            chain: "ethSepolia",
-            address: sepoliaUsdcVault,
-            startBlock: block("SEPOLIA_DEPLOY_BLOCK", 11_130_700),
-          },
-        }
-      : {}),
+    MerkleTreeBaseEth: {
+      abi: MerkleTreeAbi,
+      chain: "base",
+      address: reqAddress("MERKLE_TREE_BASE_ETH"),
+      startBlock: baseDeployBlock,
+    },
+    MerkleTreeBaseUsdc: {
+      abi: MerkleTreeAbi,
+      chain: "base",
+      address: reqAddress("MERKLE_TREE_BASE_USDC"),
+      startBlock: baseDeployBlock,
+    },
+    MerkleTreeSepoliaEth: {
+      abi: MerkleTreeAbi,
+      chain: "ethSepolia",
+      address: reqAddress("MERKLE_TREE_SEPOLIA_ETH"),
+      startBlock: sepoliaDeployBlock,
+    },
+    MerkleTreeSepoliaUsdc: {
+      abi: MerkleTreeAbi,
+      chain: "ethSepolia",
+      address: reqAddress("MERKLE_TREE_SEPOLIA_USDC"),
+      startBlock: sepoliaDeployBlock,
+    },
+    VaultBaseEth: {
+      abi: VaultAbi,
+      chain: "base",
+      address: reqAddress("VAULT_BASE_ETH"),
+      startBlock: baseDeployBlock,
+    },
+    VaultBaseUsdc: {
+      abi: VaultAbi,
+      chain: "base",
+      address: reqAddress("VAULT_BASE_USDC"),
+      startBlock: baseDeployBlock,
+    },
+    VaultSepoliaEth: {
+      abi: VaultAbi,
+      chain: "ethSepolia",
+      address: reqAddress("VAULT_SEPOLIA_ETH"),
+      startBlock: sepoliaDeployBlock,
+    },
+    VaultSepoliaUsdc: {
+      abi: VaultAbi,
+      chain: "ethSepolia",
+      address: reqAddress("VAULT_SEPOLIA_USDC"),
+      startBlock: sepoliaDeployBlock,
+    },
   },
 });
 

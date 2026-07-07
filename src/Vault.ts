@@ -1,19 +1,21 @@
-import { ponder } from "ponder:registry";
+import { ponder, type Context } from "ponder:registry";
 import schema from "ponder:schema";
 
+type DepositEvent = {
+  args: {
+    depositor: `0x${string}`;
+    amount: bigint;
+    commitment: bigint;
+    precommitment: bigint;
+  };
+  log: { address: `0x${string}`; logIndex: number };
+  block: { number: bigint; timestamp: bigint };
+  transaction: { hash: `0x${string}` };
+};
+
 async function insertDeposit(
-  event: {
-    args: {
-      depositor: `0x${string}`;
-      amount: bigint;
-      commitment: bigint;
-      precommitment: bigint;
-    };
-    log: { address: `0x${string}`; logIndex: number };
-    block: { number: bigint; timestamp: bigint };
-    transaction: { hash: `0x${string}` };
-  },
-  context: { db: { insert: (table: typeof schema.vaultDeposit) => { values: (v: unknown) => Promise<void> } } },
+  event: DepositEvent,
+  context: Context,
   chainId: number,
   asset: string,
 ) {

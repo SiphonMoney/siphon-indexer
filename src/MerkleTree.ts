@@ -1,14 +1,16 @@
-import { ponder } from "ponder:registry";
+import { ponder, type Context } from "ponder:registry";
 import schema from "ponder:schema";
 
+type LeafInsertedEvent = {
+  args: { _index: bigint; _leaf: bigint; _root: bigint };
+  log: { address: `0x${string}` };
+  block: { number: bigint; timestamp: bigint };
+  transaction: { hash: `0x${string}` };
+};
+
 async function insertLeaf(
-  event: {
-    args: { _index: bigint; _leaf: bigint; _root: bigint };
-    log: { address: `0x${string}` };
-    block: { number: bigint; timestamp: bigint };
-    transaction: { hash: `0x${string}` };
-  },
-  context: { db: { insert: (table: typeof schema.merkleLeaf) => { values: (v: unknown) => Promise<void> } } },
+  event: LeafInsertedEvent,
+  context: Context,
   chainId: number,
   asset: string,
 ) {
