@@ -25,7 +25,7 @@ const CHAINS = [
     chain: base,
     rpc: process.env.PONDER_RPC_URL_8453 || "https://mainnet.base.org",
     entrypoint: (process.env.ENTRYPOINT_BASE ||
-      "0x2f7d237977A86830708D9C872f5F4D3D7A980138") as `0x${string}`,
+      "0xe4645c9f3c479524B3B6F411B3Bcb9E0d2c28788") as `0x${string}`,
     usdc: (process.env.USDC_BASE ||
       "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") as `0x${string}`,
     prefix: "BASE",
@@ -35,7 +35,7 @@ const CHAINS = [
     chain: sepolia,
     rpc: process.env.PONDER_RPC_URL_11155111 || "https://ethereum-sepolia-rpc.publicnode.com",
     entrypoint: (process.env.ENTRYPOINT_SEPOLIA ||
-      "0x867e9C195eB85960c390D4a7A64F4e16905D6638") as `0x${string}`,
+      "0x342326835884b65C27c00249506dA440590FFb6f") as `0x${string}`,
     usdc: (process.env.USDC_SEPOLIA ||
       "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238") as `0x${string}`,
     prefix: "SEPOLIA",
