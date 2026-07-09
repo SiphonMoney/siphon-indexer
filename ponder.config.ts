@@ -84,7 +84,7 @@ export default createConfig({
     },
     ethSepolia: {
       id: 11155111,
-      rpc: cappedLogsTransport(req("PONDER_RPC_URL_11155111")),
+      rpc: cappedLogsTransport(req("PONDER_RPC_URL_11155111"), BigInt(process.env.SEPOLIA_LOG_MAXRANGE || "10")),
       maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
     },
   },
