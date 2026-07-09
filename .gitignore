@@ -1,3 +1,5 @@
 node_modules/
 .env
 .ponder/
+.env.local
+.env.*.local
