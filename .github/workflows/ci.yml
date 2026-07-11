@@ -1,0 +1,61 @@
+name: CI
+
+# Advisory checks — report ✓/✗ on the PR, block nothing (no required status checks).
+# Path-scoped so doc-only changes don't trigger a run.
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "abis/**"
+      - "ponder.config.ts"
+      - "ponder.schema.ts"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "abis/**"
+      - "ponder.config.ts"
+      - "ponder.schema.ts"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    # Ponder codegen needs the RPC + DB env vars present to validate config. Dummy CI-only
+    # values — codegen reads them but makes no live connection during validation.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      PONDER_RPC_URL_8453: https://mainnet.base.org
+      PONDER_RPC_URL_11155111: https://ethereum-sepolia-rpc.publicnode.com
+      MERKLE_TREE_BASE_ETH: "0x9b71269665f38A63C76a99A2966AbC9a25c41741"
+      MERKLE_TREE_BASE_USDC: "0xff5365729C2Aa9Ef6d04C0D58c5c6FD1B5aCc4e8"
+      MERKLE_TREE_SEPOLIA_ETH: "0xedcB2124Ad0e8c88E078C19C821d4168A7cd6270"
+      MERKLE_TREE_SEPOLIA_USDC: "0x13C89BBb7648Fa9E645ce1281c0E032Bb5eeb8F0"
+      VAULT_BASE_ETH: "0x6a6391854c078Ad1C365d66ca078461acc02B201"
+      VAULT_BASE_USDC: "0xb5187De5f97753c75B0c70e69cDAA0b246ea6FD9"
+      VAULT_SEPOLIA_ETH: "0x04e4ED1f04eF791ce0f0a11d1f23376eAbc04a93"
+      VAULT_SEPOLIA_USDC: "0xD7c12dA0465e9099B183fb0fa79493D2782Ca180"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      # Gating: codegen validates ponder.config + ponder.schema. A broken config/schema fails here.
+      - name: Ponder codegen
+        run: bun run codegen
+
+      # Advisory: tsc currently reports ~8 errors, all library-type skew in Ponder/viem/drizzle
+      # generics (not app logic). Reported without blocking until the framework types are pinned.
+      - name: Typecheck (advisory)
+        run: bun run typecheck
+        continue-on-error: true
