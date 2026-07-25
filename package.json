@@ -7,7 +7,8 @@
     "dev": "ponder dev",
     "start": "ponder start",
     "codegen": "ponder codegen",
-    "resolve-addresses": "tsx scripts/resolve-addresses.ts"
+    "resolve-addresses": "tsx scripts/resolve-addresses.ts",
+    "test": "bun test tests"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
