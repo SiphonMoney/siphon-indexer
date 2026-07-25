@@ -24,6 +24,9 @@ PostgreSQL, so the dapp can reconcile balances with a single query instead of th
 - [Operations](#operations)
 - [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
+- [The Graph subgraph](./subgraph/README.md) (agent plane — does not replace Ponder)
+
+Handoff for agents + dual-plane ops: **siphon-app `docs/HANDOFF_GRAPH.md`** (sibling repo).
 
 For production deploy steps see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 For internals and data flow see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
@@ -36,14 +39,23 @@ For internals and data flow see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 `siphon-fhe`, and `siphon-contracts`. Repos communicate only over the network (HTTP + a shared
 Postgres server), never by importing each other's code.
 
+**Two consumers, one chain:**
+
+| Consumer | Path | Needs |
+|----------|------|--------|
+| **Dapp** (ZK leaves / deposit lookup) | Ponder → Postgres → trade-executor `/vault-index/leaves\|deposits` | **Ponder always** |
+| **Agents** (Builder / MCP) | The Graph Siphon subgraph (preferred) **or** Ponder `/anonymity-set` + `/swaps` fallback | Graph Studio **and/or** updated Ponder |
+
+The Graph subgraph package lives in this repo at [`subgraph/`](./subgraph/) — it does **not** replace Ponder. See **[siphon-app/docs/HANDOFF_GRAPH.md](../siphon-app/docs/HANDOFF_GRAPH.md)** (sibling checkout) for the full handoff.
+
 ```
-On-chain events                Indexer                     Backend                Frontend
-────────────────      ──────────────────────      ─────────────────────      ──────────────
+On-chain events                Indexer                     Backend                Frontend / Agents
+────────────────      ──────────────────────      ─────────────────────      ──────────────────
 MerkleTree.LeafInserted ─┐
-Vault.Deposited ─────────┼──▶ Ponder ──▶ Postgres ──▶ trade-executor ──▶ siphon-app
-                         │    (this repo)  siphon_indexer   /vault-index/*    leafIndexClient.ts
-                         │                                                          │
-                         └───────────────────────────────────────────────── fallback: /api/rpc
+Vault.Deposited ─────────┼──▶ Ponder ──▶ Postgres ──▶ trade-executor ──▶ siphon-app leafIndexClient
+Vault.Swapped ───────────┘    (this repo)  siphon_indexer   /vault-index/*    + agent fallback
+                         │
+                         └──▶ subgraph/ ──▶ The Graph Studio ──▶ gateway ──▶ graph.ts / MCP / Builder
 ```
 
 **The frontend never talks to Ponder directly in production.** It calls the trade-executor's
@@ -65,11 +77,15 @@ Siphon deploys **one Vault per asset per chain** via `CREATE2`, and each Vault c
 
 | Contract | Event | Indexed into | Used for |
 |---|---|---|---|
-| `MerkleTree` | `LeafInserted(index, leaf, root)` | `merkle_leaf` | Spendable-balance reconciliation |
-| `Vault` | `Deposited(depositor, amount, commitment, precommitment)` | `vault_deposit` | Vault-mode swap output-note resolution |
+| `MerkleTree` | `LeafInserted(index, leaf, root)` | `merkle_leaf` | Spendable-balance reconciliation (dapp) |
+| `Vault` | `Deposited(...)` | `vault_deposit` | Vault-mode output-note resolution |
+| `Vault` | `Swapped(...)` | `vault_swap` | Agent settle history + swap counters (**new on `dev_lisbon`**) |
 
 Addresses are not emitted by any registry event, so they are resolved once from each chain's
 `Entrypoint` via `npm run resolve-addresses` (see [Configuration](#configuration)).
+
+> **Ops:** After pulling `dev_lisbon`, **restart Ponder** so `vault_swap` is created and
+> historical `Swapped` logs backfill. Until then, `/swaps` may be empty.
 
 ---
 
@@ -180,6 +196,20 @@ Indexes: `(chain_id, asset)`, `(leaf)`, `(merkle_tree)`.
 
 Indexes: `(chain_id, precommitment)`, `(commitment)`, `(chain_id, asset)`.
 
+### `vault_swap` (Swapped events — agent / Graph fallback)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text (PK) | `${txHash}-${logIndex}` |
+| `chain_id` | integer | |
+| `asset` | text | Source vault asset |
+| `vault` | hex | |
+| `recipient` | hex | Often **dst vault** on atomic `swapAndDeposit` |
+| `pool` / `src_token` / `dst_token` | hex | |
+| `amount_in` / `min_amount_out` / `fee` | text | |
+| `spent_nullifier` / `new_commitment` | text | |
+| `block_number` / `block_timestamp` / `tx_hash` | | |
+
 > **uint256 values are stored as decimal strings**, not numeric, because Poseidon commitments
 > exceed Postgres's `numeric`/`bigint` safe range. Consumers parse them with `BigInt`.
 
@@ -197,15 +227,19 @@ Custom HTTP routes in `src/api/index.ts` (Hono + Drizzle):
 |---|---|---|---|
 | `GET` | `/leaves` | `chainId`, `asset` | `{ chainId, asset, count, leaves: string[] }` |
 | `GET` | `/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment?, ... }` |
+| `GET` | `/anonymity-set` | `chainId`, `asset` | `{ leafCount, depositCount, swapCount, ... }` |
+| `GET` | `/swaps` | `chainId`, `limit?` | `{ swaps: [...] }` (max 50) |
 | `GET` | `/health` | — | Ponder's built-in readiness endpoint (reserved) |
 | `POST` | `/graphql` | — | Auto-generated GraphQL over the schema |
 
 ```bash
 curl "http://localhost:42069/leaves?chainId=8453&asset=ETH"
 curl "http://localhost:42069/deposits?chainId=8453&precommitment=123456789"
+curl "http://localhost:42069/anonymity-set?chainId=8453&asset=USDC"
+curl "http://localhost:42069/swaps?chainId=8453&limit=5"
 ```
 
-> In production this port is **internal only** — don't expose it publicly. The frontend uses the
+> In production this port is **internal only** — don't expose it publicly. The frontend / agents use the
 > trade-executor proxy below.
 
 ### 2. trade-executor proxy (public, port `5005`)
@@ -217,9 +251,17 @@ curl "http://localhost:42069/deposits?chainId=8453&precommitment=123456789"
 | `GET` | `/vault-index/health` | — | `{ ok, leafCount }` |
 | `GET` | `/vault-index/leaves` | `chainId`, `asset` | `{ chainId, asset, count, leaves }` |
 | `GET` | `/vault-index/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment? }` |
+| `GET` | `/vault-index/anonymity-set` | `chainId`, `asset` | agent counters (Graph fallback) |
+| `GET` | `/vault-index/swaps` | `chainId`, `limit?` | recent `Vault.Swapped` |
+| `GET` | `/vault-index/balance` | `chainId` | protocol-wide deposit sums |
 
-This is what the browser actually calls (CORS is already configured for the app origin, and the
+This is what the browser / MCP fallback actually calls (CORS is already configured for the app origin, and the
 executor is already a public service).
+
+### 3. The Graph subgraph (optional agent-primary)
+
+See [`subgraph/README.md`](./subgraph/README.md). Deploy to Studio; point app `SIPHON_SUBGRAPH_ID` + `THE_GRAPH_API_KEY`.
+Ponder keeps serving the dapp regardless.
 
 ---
 
