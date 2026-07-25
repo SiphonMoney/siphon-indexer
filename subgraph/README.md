@@ -11,7 +11,7 @@ Uniswap V3 liquidity is **not** indexed here — the app/MCP query the public Un
 ## Deploy (Studio)
 
 ```bash
-cd siphon-subgraph
+cd siphon-indexer/subgraph
 npm install
 npm run codegen && npm run build
 # auth once: graph auth --studio <DEPLOY_KEY>
