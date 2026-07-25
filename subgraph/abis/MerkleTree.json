@@ -1,0 +1,12 @@
+[
+  {
+    "type": "event",
+    "name": "LeafInserted",
+    "anonymous": false,
+    "inputs": [
+      { "name": "_index", "type": "uint256", "indexed": false },
+      { "name": "_leaf", "type": "uint256", "indexed": false },
+      { "name": "_root", "type": "uint256", "indexed": false }
+    ]
+  }
+]
