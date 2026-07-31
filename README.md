@@ -80,6 +80,7 @@ Siphon deploys **one Vault per asset per chain** via `CREATE2`, and each Vault c
 | `MerkleTree` | `LeafInserted(index, leaf, root)` | `merkle_leaf` | Spendable-balance reconciliation (dapp) |
 | `Vault` | `Deposited(...)` | `vault_deposit` | Vault-mode output-note resolution |
 | `Vault` | `Swapped(...)` | `vault_swap` | Agent settle history + swap counters (**new on `dev_lisbon`**) |
+| Veil Entry / pools (Base) | deposits + withdraw recipients | `tornado_touch` | ASP screened-set mixer association |
 
 Addresses are not emitted by any registry event, so they are resolved once from each chain's
 `Entrypoint` via `npm run resolve-addresses` (see [Configuration](#configuration)).
@@ -87,6 +88,9 @@ Addresses are not emitted by any registry event, so they are resolved once from 
 > **Ops:** After pulling `dev_lisbon`, **restart Ponder** so `vault_swap` is created and
 > historical `Swapped` logs backfill. Until then, `/swaps` may be empty.
 
+Base privacy-mixer indexing (Veil Cash — Tornado is not on Base) is enabled by default
+(`INDEX_BASE_MIXERS=1`). Override start block with `BASE_MIXER_START_BLOCK`. ASP reads
+`tornado_touch` via shared Postgres or `GET /mixer-touches`.
 ---
 
 ## Quick start (local)
@@ -229,6 +233,8 @@ Custom HTTP routes in `src/api/index.ts` (Hono + Drizzle):
 | `GET` | `/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment?, ... }` |
 | `GET` | `/anonymity-set` | `chainId`, `asset` | `{ leafCount, depositCount, swapCount, ... }` |
 | `GET` | `/swaps` | `chainId`, `limit?` | `{ swaps: [...] }` (max 50) |
+| `GET` | `/mixer-touches` | `chainId`, `address`, optional `direction`, `sinceTs`, `limit` | Veil/Tornado association touches for ASP |
+| `GET` | `/bridge-peers` | `chainId`, `address`, optional `sinceTs`, `limit` | Bridge counterparties (`base_standard`/`across`/`hop`/`stargate`) |
 | `GET` | `/health` | — | Ponder's built-in readiness endpoint (reserved) |
 | `POST` | `/graphql` | — | Auto-generated GraphQL over the schema |
 
@@ -238,6 +244,8 @@ curl "http://localhost:42069/leaves?chainId=8453&asset=ETH&fromIndex=100"
 curl "http://localhost:42069/deposits?chainId=8453&precommitment=123456789"
 curl "http://localhost:42069/anonymity-set?chainId=8453&asset=USDC"
 curl "http://localhost:42069/swaps?chainId=8453&limit=5"
+curl "http://localhost:42069/mixer-touches?chainId=8453&address=0x…"
+curl "http://localhost:42069/bridge-peers?chainId=8453&address=0x…"
 ```
 
 Incremental sync: clients pass `fromIndex` = their dense leaf count. If `contiguous` is

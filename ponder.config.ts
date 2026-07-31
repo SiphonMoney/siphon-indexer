@@ -2,6 +2,33 @@ import { createConfig } from "ponder";
 import { http, type Transport } from "viem";
 import { MerkleTreeAbi } from "./abis/MerkleTree";
 import { VaultAbi } from "./abis/Vault";
+import { VeilClassicPoolAbi, VeilEntryAbi, VeilNovaPoolAbi } from "./abis/VeilMixer";
+import {
+  BASE_L2_STANDARD_BRIDGE,
+  StandardBridgeAbi,
+  TornadoClassicPoolAbi,
+  bridgeStartBlock,
+  indexBaseBridges,
+} from "./abis/CrossChainGraph";
+import {
+  ACROSS_SPOKE_BASE,
+  ACROSS_SPOKE_ETH,
+  AcrossSpokePoolAbi,
+  HOP_ETH_BASE_L2_BRIDGE,
+  HOP_ETH_L1_BRIDGE,
+  HOP_USDCE_BASE_L2_BRIDGE,
+  HOP_USDCE_L1_BRIDGE,
+  HopL1BridgeAbi,
+  HopL2BridgeAbi,
+  OftBridgeAbi,
+  indexHopBridges,
+  indexThirdPartyBridges,
+  stargateBasePools,
+  stargateEthPools,
+  thirdPartyBridgeStartBlock,
+} from "./abis/ThirdPartyBridges";
+import { BASE_MIXER_POOLS, indexBaseMixers, mixerStartBlock } from "./src/mixerPools.base";
+import { ETH_TORNADO_POOLS, ethMixerStartBlock, indexEthTornado } from "./src/mixerPools.eth";
 
 /**
  * HTTP transport that splits eth_getLogs into ≤maxRange block windows. Free-tier RPCs cap the
@@ -69,25 +96,173 @@ function block(name: string, fallback: number): number {
 const baseDeployBlock = block("BASE_DEPLOY_BLOCK", 47_815_995);
 const sepoliaDeployBlock = block("SEPOLIA_DEPLOY_BLOCK", 11_130_700);
 
+const mixerContracts: Record<
+  string,
+  {
+    abi:
+      | typeof VeilEntryAbi
+      | typeof VeilNovaPoolAbi
+      | typeof VeilClassicPoolAbi
+      | typeof TornadoClassicPoolAbi
+      | typeof StandardBridgeAbi
+      | typeof AcrossSpokePoolAbi
+      | typeof OftBridgeAbi
+      | typeof HopL1BridgeAbi
+      | typeof HopL2BridgeAbi;
+    chain: "base" | "ethereum";
+    address: `0x${string}`;
+    startBlock: number;
+  }
+> = {};
+
+if (indexBaseMixers()) {
+  for (const p of BASE_MIXER_POOLS) {
+    const startBlock = mixerStartBlock(p.defaultStartBlock);
+    if (p.kind === "veil_entry") {
+      mixerContracts[p.id] = {
+        abi: VeilEntryAbi,
+        chain: "base",
+        address: p.address,
+        startBlock,
+      };
+    } else if (p.kind === "veil_nova") {
+      mixerContracts[p.id] = {
+        abi: VeilNovaPoolAbi,
+        chain: "base",
+        address: p.address,
+        startBlock,
+      };
+    } else {
+      mixerContracts[p.id] = {
+        abi: VeilClassicPoolAbi,
+        chain: "base",
+        address: p.address,
+        startBlock,
+      };
+    }
+  }
+}
+
+if (indexBaseBridges()) {
+  mixerContracts.BaseL2StandardBridge = {
+    abi: StandardBridgeAbi,
+    chain: "base",
+    address: BASE_L2_STANDARD_BRIDGE,
+    // Base genesis-ish; override with BASE_BRIDGE_START_BLOCK to limit backfill
+    startBlock: bridgeStartBlock(1),
+  };
+}
+
+if (indexEthTornado()) {
+  for (const p of ETH_TORNADO_POOLS) {
+    mixerContracts[p.id] = {
+      abi: TornadoClassicPoolAbi,
+      chain: "ethereum",
+      address: p.address,
+      startBlock: ethMixerStartBlock(p.defaultStartBlock),
+    };
+  }
+}
+
+if (indexThirdPartyBridges()) {
+  const tpStart = thirdPartyBridgeStartBlock(15_000_000);
+  const baseTpStart = thirdPartyBridgeStartBlock(10_000_000);
+  mixerContracts.AcrossSpokeBase = {
+    abi: AcrossSpokePoolAbi,
+    chain: "base",
+    address: ACROSS_SPOKE_BASE,
+    startBlock: baseTpStart,
+  };
+  mixerContracts.AcrossSpokeEth = {
+    abi: AcrossSpokePoolAbi,
+    chain: "ethereum",
+    address: ACROSS_SPOKE_ETH,
+    startBlock: tpStart,
+  };
+
+  if (indexHopBridges()) {
+    mixerContracts.HopEthL1 = {
+      abi: HopL1BridgeAbi,
+      chain: "ethereum",
+      address: HOP_ETH_L1_BRIDGE,
+      startBlock: tpStart,
+    };
+    mixerContracts.HopEthBaseL2 = {
+      abi: HopL2BridgeAbi,
+      chain: "base",
+      address: HOP_ETH_BASE_L2_BRIDGE,
+      startBlock: baseTpStart,
+    };
+    mixerContracts.HopUsdceL1 = {
+      abi: HopL1BridgeAbi,
+      chain: "ethereum",
+      address: HOP_USDCE_L1_BRIDGE,
+      startBlock: tpStart,
+    };
+    mixerContracts.HopUsdceBaseL2 = {
+      abi: HopL2BridgeAbi,
+      chain: "base",
+      address: HOP_USDCE_BASE_L2_BRIDGE,
+      startBlock: baseTpStart,
+    };
+  }
+
+  stargateBasePools().forEach((address, i) => {
+    mixerContracts[`StargateBase${i}`] = {
+      abi: OftBridgeAbi,
+      chain: "base",
+      address,
+      startBlock: baseTpStart,
+    };
+  });
+  stargateEthPools().forEach((address, i) => {
+    mixerContracts[`StargateEth${i}`] = {
+      abi: OftBridgeAbi,
+      chain: "ethereum",
+      address,
+      startBlock: tpStart,
+    };
+  });
+}
+
+const needEthereum = indexEthTornado() || indexThirdPartyBridges();
+
+const chains: Record<
+  string,
+  { id: number; rpc: Transport; maxRequestsPerSecond: number }
+> = {
+  base: {
+    id: 8453,
+    rpc: cappedLogsTransport(req("PONDER_RPC_URL_8453")),
+    maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
+  },
+  ethSepolia: {
+    id: 11155111,
+    rpc: cappedLogsTransport(
+      req("PONDER_RPC_URL_11155111"),
+      BigInt(process.env.SEPOLIA_LOG_MAXRANGE || "10"),
+    ),
+    maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
+  },
+};
+
+if (needEthereum) {
+  chains.ethereum = {
+    id: 1,
+    rpc: cappedLogsTransport(req("PONDER_RPC_URL_1")),
+    maxRequestsPerSecond: parseInt(
+      process.env.PONDER_MAX_RPS_ETH || process.env.PONDER_MAX_RPS || "10",
+      10,
+    ),
+  };
+}
+
 export default createConfig({
   database: {
     kind: "postgres",
     connectionString: req("DATABASE_URL"),
   },
-  chains: {
-    base: {
-      id: 8453,
-      rpc: cappedLogsTransport(req("PONDER_RPC_URL_8453")),
-      // Keep well under the RPC key's rate limit (Ponder defaults to 50/s per chain,
-      // which 429s a shared/free Alchemy key when both chains backfill at once).
-      maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
-    },
-    ethSepolia: {
-      id: 11155111,
-      rpc: cappedLogsTransport(req("PONDER_RPC_URL_11155111"), BigInt(process.env.SEPOLIA_LOG_MAXRANGE || "10")),
-      maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
-    },
-  },
+  chains,
   contracts: {
     MerkleTreeBaseEth: {
       abi: MerkleTreeAbi,
@@ -137,6 +312,7 @@ export default createConfig({
       address: reqAddress("VAULT_SEPOLIA_USDC"),
       startBlock: sepoliaDeployBlock,
     },
+    ...mixerContracts,
   },
 });
 
