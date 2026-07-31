@@ -195,15 +195,20 @@ Custom HTTP routes in `src/api/index.ts` (Hono + Drizzle):
 
 | Method | Route | Query params | Returns |
 |---|---|---|---|
-| `GET` | `/leaves` | `chainId`, `asset` | `{ chainId, asset, count, leaves: string[] }` |
+| `GET` | `/leaves` | `chainId`, `asset`, optional `fromIndex`, `limit` | `{ chainId, asset, fromIndex, count, totalCount, nextIndex, tipRoot, tipLeafIndex, tipBlockNumber, contiguous, leaves: string[] }` |
 | `GET` | `/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment?, ... }` |
 | `GET` | `/health` | — | Ponder's built-in readiness endpoint (reserved) |
 | `POST` | `/graphql` | — | Auto-generated GraphQL over the schema |
 
 ```bash
 curl "http://localhost:42069/leaves?chainId=8453&asset=ETH"
+curl "http://localhost:42069/leaves?chainId=8453&asset=ETH&fromIndex=100"
 curl "http://localhost:42069/deposits?chainId=8453&precommitment=123456789"
 ```
+
+Incremental sync: clients pass `fromIndex` = their dense leaf count. If `contiguous` is
+false, discard local state and resync from `fromIndex=0`. Always verify `tipRoot` / folded
+root against on-chain `getRoot()` / `rootExists()` — never trust size alone.
 
 > In production this port is **internal only** — don't expose it publicly. The frontend uses the
 > trade-executor proxy below.
