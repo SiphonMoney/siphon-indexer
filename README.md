@@ -67,10 +67,11 @@ Siphon deploys **one Vault per asset per chain** via `CREATE2`, and each Vault c
 |---|---|---|---|
 | `MerkleTree` | `LeafInserted(index, leaf, root)` | `merkle_leaf` | Spendable-balance reconciliation |
 | `Vault` | `Deposited(depositor, amount, commitment, precommitment)` | `vault_deposit` | Vault-mode swap output-note resolution |
+| Veil Entry / pools (Base) | deposits + withdraw recipients | `tornado_touch` | ASP `S_screened` mixer association |
 
-Addresses are not emitted by any registry event, so they are resolved once from each chain's
-`Entrypoint` via `npm run resolve-addresses` (see [Configuration](#configuration)).
-
+Base privacy-mixer indexing (Veil Cash — Tornado is not on Base) is enabled by default
+(`INDEX_BASE_MIXERS=1`). Override start block with `BASE_MIXER_START_BLOCK`. ASP reads
+`tornado_touch` via shared Postgres or `GET /mixer-touches`.
 ---
 
 ## Quick start (local)
@@ -197,12 +198,16 @@ Custom HTTP routes in `src/api/index.ts` (Hono + Drizzle):
 |---|---|---|---|
 | `GET` | `/leaves` | `chainId`, `asset` | `{ chainId, asset, count, leaves: string[] }` |
 | `GET` | `/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment?, ... }` |
+| `GET` | `/mixer-touches` | `chainId`, `address`, optional `direction`, `sinceTs`, `limit` | Veil/Tornado association touches for ASP |
+| `GET` | `/bridge-peers` | `chainId`, `address`, optional `sinceTs`, `limit` | Bridge counterparties (`base_standard`/`across`/`hop`/`stargate`) |
 | `GET` | `/health` | — | Ponder's built-in readiness endpoint (reserved) |
 | `POST` | `/graphql` | — | Auto-generated GraphQL over the schema |
 
 ```bash
 curl "http://localhost:42069/leaves?chainId=8453&asset=ETH"
 curl "http://localhost:42069/deposits?chainId=8453&precommitment=123456789"
+curl "http://localhost:42069/mixer-touches?chainId=8453&address=0x…"
+curl "http://localhost:42069/bridge-peers?chainId=8453&address=0x…"
 ```
 
 > In production this port is **internal only** — don't expose it publicly. The frontend uses the

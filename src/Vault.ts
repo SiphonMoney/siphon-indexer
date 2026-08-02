@@ -7,6 +7,8 @@ type DepositEvent = {
     amount: bigint;
     commitment: bigint;
     precommitment: bigint;
+    label: bigint;
+    nonce: bigint;
   };
   log: { address: `0x${string}`; logIndex: number };
   block: { number: bigint; timestamp: bigint };
@@ -19,7 +21,7 @@ async function insertDeposit(
   chainId: number,
   asset: string,
 ) {
-  const { depositor, amount, commitment, precommitment } = event.args;
+  const { depositor, amount, commitment, precommitment, label, nonce } = event.args;
   const id = `${event.transaction.hash}-${event.log.logIndex}`;
 
   await context.db.insert(schema.vaultDeposit).values({
@@ -31,6 +33,8 @@ async function insertDeposit(
     amount: amount.toString(),
     commitment: commitment.toString(),
     precommitment: precommitment.toString(),
+    label: label.toString(),
+    nonce: nonce.toString(),
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
     txHash: event.transaction.hash,
