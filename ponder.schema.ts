@@ -32,6 +32,10 @@ export const vaultDeposit = onchainTable(
     amount: t.text().notNull(),
     commitment: t.text().notNull(),
     precommitment: t.text().notNull(),
+    /** Hard ASP association label (Poseidon(scope, nonce)). */
+    label: t.text().notNull(),
+    /** Vault deposit nonce used to derive label. */
+    nonce: t.text().notNull(),
     blockNumber: t.bigint().notNull(),
     blockTimestamp: t.bigint().notNull(),
     txHash: t.hex().notNull(),
@@ -40,6 +44,7 @@ export const vaultDeposit = onchainTable(
     chainPrecommitmentIdx: index().on(table.chainId, table.precommitment),
     commitmentIdx: index().on(table.commitment),
     chainAssetIdx: index().on(table.chainId, table.asset),
+    labelIdx: index().on(table.label),
   }),
 );
 
