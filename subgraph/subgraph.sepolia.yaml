@@ -69,9 +69,9 @@ dataSources:
         - name: Vault
           file: ./abis/Vault.json
       eventHandlers:
-        - event: Deposited(indexed address,uint256,uint256,uint256)
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
           handler: handleDepositedSepoliaEth
-        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256)
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
           handler: handleSwappedSepoliaEth
       file: ./src/vault-sepolia.ts
 
@@ -95,8 +95,8 @@ dataSources:
         - name: Vault
           file: ./abis/Vault.json
       eventHandlers:
-        - event: Deposited(indexed address,uint256,uint256,uint256)
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
           handler: handleDepositedSepoliaUsdc
-        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256)
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
           handler: handleSwappedSepoliaUsdc
       file: ./src/vault-sepolia.ts

@@ -30,6 +30,7 @@ type SwapEvent = {
     };
     _spentNullifier: bigint;
     _newCommitment: bigint;
+    _newLabel: bigint;
   };
   log: { address: `0x${string}`; logIndex: number };
   block: { number: bigint; timestamp: bigint };
@@ -68,7 +69,7 @@ async function insertSwap(
   chainId: number,
   asset: string,
 ) {
-  const { recipient, _param, _spentNullifier, _newCommitment } = event.args;
+  const { recipient, _param, _spentNullifier, _newCommitment, _newLabel } = event.args;
   const id = `${event.transaction.hash}-${event.log.logIndex}`;
 
   await context.db.insert(schema.vaultSwap).values({
@@ -85,6 +86,7 @@ async function insertSwap(
     fee: _param.fee.toString(),
     spentNullifier: _spentNullifier.toString(),
     newCommitment: _newCommitment.toString(),
+    newLabel: _newLabel.toString(),
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
     txHash: event.transaction.hash,

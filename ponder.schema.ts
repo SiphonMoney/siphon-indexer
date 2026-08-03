@@ -64,6 +64,7 @@ export const vaultSwap = onchainTable(
     fee: t.text().notNull(),
     spentNullifier: t.text().notNull(),
     newCommitment: t.text().notNull(),
+    newLabel: t.text().notNull(),
     blockNumber: t.bigint().notNull(),
     blockTimestamp: t.bigint().notNull(),
     txHash: t.hex().notNull(),

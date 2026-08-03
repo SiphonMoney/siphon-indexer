@@ -7,7 +7,9 @@
       { "name": "depositor", "type": "address", "indexed": true },
       { "name": "amount", "type": "uint256", "indexed": false },
       { "name": "commitment", "type": "uint256", "indexed": false },
-      { "name": "precommitment", "type": "uint256", "indexed": false }
+      { "name": "precommitment", "type": "uint256", "indexed": false },
+      { "name": "label", "type": "uint256", "indexed": false },
+      { "name": "nonce", "type": "uint256", "indexed": false }
     ]
   },
   {
@@ -32,7 +34,8 @@
         ]
       },
       { "name": "_spentNullifier", "type": "uint256", "indexed": false },
-      { "name": "_newCommitment", "type": "uint256", "indexed": false }
+      { "name": "_newCommitment", "type": "uint256", "indexed": false },
+      { "name": "_newLabel", "type": "uint256", "indexed": false }
     ]
   }
 ]

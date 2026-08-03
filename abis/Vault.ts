@@ -51,6 +51,7 @@ export const VaultAbi = [
       },
       { name: "_spentNullifier", type: "uint256", indexed: false },
       { name: "_newCommitment", type: "uint256", indexed: false },
+      { name: "_newLabel", type: "uint256", indexed: false },
     ],
   },
 ] as const;

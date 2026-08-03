@@ -69,9 +69,9 @@ dataSources:
         - name: Vault
           file: ./abis/Vault.json
       eventHandlers:
-        - event: Deposited(indexed address,uint256,uint256,uint256)
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
           handler: handleDepositedBaseEth
-        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256)
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
           handler: handleSwappedBaseEth
       file: ./src/vault.ts
 
@@ -95,8 +95,8 @@ dataSources:
         - name: Vault
           file: ./abis/Vault.json
       eventHandlers:
-        - event: Deposited(indexed address,uint256,uint256,uint256)
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
           handler: handleDepositedBaseUsdc
-        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256)
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
           handler: handleSwappedBaseUsdc
       file: ./src/vault.ts

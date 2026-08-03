@@ -42,6 +42,8 @@ type Deposit @entity(immutable: true) {
   amount: BigInt!
   commitment: BigInt!
   precommitment: BigInt!
+  label: BigInt!
+  nonce: BigInt!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   txHash: Bytes!
@@ -62,13 +64,14 @@ type VaultSwap @entity(immutable: true) {
   fee: BigInt!
   spentNullifier: BigInt!
   newCommitment: BigInt!
+  newLabel: BigInt!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   txHash: Bytes!
 }
 
 """Rolling counters for agent prompts (updated in mappings)."""
-type AnonymitySet @entity {
+type AnonymitySet @entity(immutable: false) {
   id: ID!
   chainId: Int!
   asset: AssetSymbol!

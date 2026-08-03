@@ -42,6 +42,8 @@ function handleDeposit(event: Deposited, chainId: i32, asset: string): void {
   deposit.amount = event.params.amount;
   deposit.commitment = event.params.commitment;
   deposit.precommitment = event.params.precommitment;
+  deposit.label = event.params.label;
+  deposit.nonce = event.params.nonce;
   deposit.blockNumber = event.block.number;
   deposit.blockTimestamp = event.block.timestamp;
   deposit.txHash = event.transaction.hash;
@@ -73,6 +75,7 @@ function handleSwap(event: Swapped, chainId: i32, asset: string): void {
   swap.fee = BigInt.fromI32(param.fee);
   swap.spentNullifier = event.params._spentNullifier;
   swap.newCommitment = event.params._newCommitment;
+  swap.newLabel = event.params._newLabel;
   swap.blockNumber = event.block.number;
   swap.blockTimestamp = event.block.timestamp;
   swap.txHash = event.transaction.hash;

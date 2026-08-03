@@ -193,6 +193,7 @@ app.get("/swaps", async (c) => {
       pool: r.pool,
       amountIn: r.amountIn,
       minAmountOut: r.minAmountOut,
+      newLabel: r.newLabel,
       blockTimestamp: Number(r.blockTimestamp),
       txHash: r.txHash,
     })),

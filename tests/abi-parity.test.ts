@@ -30,7 +30,10 @@ describe("subgraph ABIs", () => {
     assert.equal(ev!.type, "event");
     assert.equal(ev!.inputs![0].name, "depositor");
     assert.equal(ev!.inputs![0].indexed, true);
-    assert.equal(ev!.inputs!.length, 4);
+    assert.deepEqual(
+      ev!.inputs!.map((input) => input.name),
+      ["depositor", "amount", "commitment", "precommitment", "label", "nonce"],
+    );
   });
 
   it("include Swapped with 8-field SwapParam tuple", () => {
@@ -51,6 +54,8 @@ describe("subgraph ABIs", () => {
       "fee",
       "deadline",
     ]);
+    assert.equal(ev!.inputs!.length, 5);
+    assert.equal(ev!.inputs![4].name, "_newLabel");
   });
 
   it("include LeafInserted", () => {
@@ -71,6 +76,15 @@ describe("ponder handlers wire Swapped", () => {
     ]) {
       assert.ok(src.includes(name), `missing ${name}`);
     }
+  });
+
+  it("stores the inherited Hard ASP label for swaps and deposits", () => {
+    const src = readFileSync(join(root, "src", "Vault.ts"), "utf8");
+    const schema = readFileSync(join(root, "ponder.schema.ts"), "utf8");
+    assert.ok(src.includes("newLabel: _newLabel.toString()"));
+    assert.ok(src.includes("label: label.toString()"));
+    assert.ok(schema.includes("newLabel: t.text().notNull()"));
+    assert.ok(schema.includes("label: t.text().notNull()"));
   });
 
   it("API exposes anonymity-set and swaps for Graph client fallback", () => {
