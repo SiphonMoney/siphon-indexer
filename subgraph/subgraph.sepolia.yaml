@@ -1,0 +1,102 @@
+specVersion: 1.0.0
+description: Siphon vault anonymity set + deposits + swaps on Ethereum Sepolia
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: MerkleTreeSepoliaEth
+    network: sepolia
+    source:
+      address: "0xedcB2124Ad0e8c88E078C19C821d4168A7cd6270"
+      abi: MerkleTree
+      startBlock: 11168257
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - MerkleLeaf
+        - AnonymitySet
+        - MerkleTree
+      abis:
+        - name: MerkleTree
+          file: ./abis/MerkleTree.json
+      eventHandlers:
+        - event: LeafInserted(uint256,uint256,uint256)
+          handler: handleLeafInsertedSepoliaEth
+      file: ./src/merkle-sepolia.ts
+
+  - kind: ethereum
+    name: MerkleTreeSepoliaUsdc
+    network: sepolia
+    source:
+      address: "0x13C89BBb7648Fa9E645ce1281c0E032Bb5eeb8F0"
+      abi: MerkleTree
+      startBlock: 11168257
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - MerkleLeaf
+        - AnonymitySet
+        - MerkleTree
+      abis:
+        - name: MerkleTree
+          file: ./abis/MerkleTree.json
+      eventHandlers:
+        - event: LeafInserted(uint256,uint256,uint256)
+          handler: handleLeafInsertedSepoliaUsdc
+      file: ./src/merkle-sepolia.ts
+
+  - kind: ethereum
+    name: VaultSepoliaEth
+    network: sepolia
+    source:
+      address: "0x04e4ED1f04eF791ce0f0a11d1f23376eAbc04a93"
+      abi: Vault
+      startBlock: 11168257
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Deposit
+        - VaultSwap
+        - AnonymitySet
+        - Vault
+      abis:
+        - name: Vault
+          file: ./abis/Vault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
+          handler: handleDepositedSepoliaEth
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
+          handler: handleSwappedSepoliaEth
+      file: ./src/vault-sepolia.ts
+
+  - kind: ethereum
+    name: VaultSepoliaUsdc
+    network: sepolia
+    source:
+      address: "0xD7c12dA0465e9099B183fb0fa79493D2782Ca180"
+      abi: Vault
+      startBlock: 11168257
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Deposit
+        - VaultSwap
+        - AnonymitySet
+        - Vault
+      abis:
+        - name: Vault
+          file: ./abis/Vault.json
+      eventHandlers:
+        - event: Deposited(indexed address,uint256,uint256,uint256,uint256,uint256)
+          handler: handleDepositedSepoliaUsdc
+        - event: Swapped(indexed address,(address,address,address,address,uint256,uint256,uint24,uint256),uint256,uint256,uint256)
+          handler: handleSwappedSepoliaUsdc
+      file: ./src/vault-sepolia.ts

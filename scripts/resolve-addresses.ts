@@ -31,7 +31,7 @@ const CHAINS = [
     chain: base,
     rpc: process.env.PONDER_RPC_URL_8453 || "https://mainnet.base.org",
     entrypoint: (process.env.ENTRYPOINT_BASE ||
-      "0xe4645c9f3c479524B3B6F411B3Bcb9E0d2c28788") as `0x${string}`, // current Base entrypoint
+      "0x5433995fc5a0459E5ad7f2A81561384887F37174") as `0x${string}`, // match siphon-app Base EP; override after Hard ASP deploy
     usdc: (process.env.USDC_BASE ||
       "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") as `0x${string}`,
     prefix: "BASE",
@@ -41,7 +41,7 @@ const CHAINS = [
     chain: sepolia,
     rpc: process.env.PONDER_RPC_URL_11155111 || "https://ethereum-sepolia-rpc.publicnode.com",
     entrypoint: (process.env.ENTRYPOINT_SEPOLIA ||
-      "0x342326835884b65C27c00249506dA440590FFb6f") as `0x${string}`, // current Sepolia entrypoint
+      "0xE5126A49D1bb93957b4B2F63BCB05a1F8EA9e705") as `0x${string}`, // match siphon-app Sepolia EP
     usdc: (process.env.USDC_SEPOLIA ||
       "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238") as `0x${string}`,
     prefix: "SEPOLIA",
