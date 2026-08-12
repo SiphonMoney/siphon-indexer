@@ -92,4 +92,11 @@ describe("ponder handlers wire Swapped", () => {
     assert.ok(api.includes("/anonymity-set"));
     assert.ok(api.includes("/swaps"));
   });
+
+  it("makes replayed leaf, deposit, and swap events idempotent", () => {
+    const merkle = readFileSync(join(root, "src", "MerkleTree.ts"), "utf8");
+    const vault = readFileSync(join(root, "src", "Vault.ts"), "utf8");
+    assert.equal(merkle.match(/\.onConflictDoNothing\(\)/g)?.length, 1);
+    assert.equal(vault.match(/\.onConflictDoNothing\(\)/g)?.length, 2);
+  });
 });

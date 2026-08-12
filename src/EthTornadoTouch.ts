@@ -1,6 +1,7 @@
 import { ponder, type Context } from "ponder:registry";
 import { insertTornadoTouch } from "./touchInsert";
 import { ETH_TORNADO_POOLS, indexEthTornado } from "./mixerPools.eth";
+import { parseIndexerScope } from "./indexerScope";
 
 const CHAIN_ID = 1;
 
@@ -57,7 +58,7 @@ async function onDeposit(
   });
 }
 
-if (indexEthTornado()) {
+if (parseIndexerScope(process.env.INDEXER_SCOPE) === "all" && indexEthTornado()) {
   ponder.on("TornadoEth01:Withdrawal", async ({ event, context }) => {
     await onWithdrawal(event, context);
   });

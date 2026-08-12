@@ -1,7 +1,8 @@
 import { ponder, type Context } from "ponder:registry";
 import { decodeFunctionData, type Hex } from "viem";
 import { VeilNovaPoolAbi } from "../abis/VeilMixer";
-import { BASE_MIXER_POOLS } from "./mixerPools.base";
+import { BASE_MIXER_POOLS, indexBaseMixers } from "./mixerPools.base";
+import { includesBase, parseIndexerScope } from "./indexerScope";
 import { insertTornadoTouch } from "./touchInsert";
 
 const CHAIN_ID = 8453;
@@ -57,6 +58,10 @@ async function recipientFromNovaTx(
   }
 }
 
+const registerBaseMixerHandlers =
+  includesBase(parseIndexerScope(process.env.INDEXER_SCOPE)) && indexBaseMixers();
+
+if (registerBaseMixerHandlers) {
 ponder.on("VeilEntry:DepositedETH", async ({ event, context }) => {
   await insertTornadoTouch(context, {
     chainId: CHAIN_ID,
@@ -145,3 +150,4 @@ ponder.on("VeilLegacy01Eth:Deposit", async ({ event, context }) => {
     logOrCallId: `${event.log.logIndex}-dep`,
   });
 });
+}

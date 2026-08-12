@@ -1,5 +1,10 @@
 import { ponder, type Context } from "ponder:registry";
 import schema from "ponder:schema";
+import {
+  includesBase,
+  includesSepolia,
+  parseIndexerScope,
+} from "./indexerScope";
 
 type DepositEvent = {
   args: {
@@ -46,21 +51,24 @@ async function insertDeposit(
   const { depositor, amount, commitment, precommitment, label, nonce } = event.args;
   const id = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  await context.db.insert(schema.vaultDeposit).values({
-    id,
-    chainId,
-    asset,
-    vault: event.log.address,
-    depositor,
-    amount: amount.toString(),
-    commitment: commitment.toString(),
-    precommitment: precommitment.toString(),
-    label: label.toString(),
-    nonce: nonce.toString(),
-    blockNumber: event.block.number,
-    blockTimestamp: event.block.timestamp,
-    txHash: event.transaction.hash,
-  });
+  await context.db
+    .insert(schema.vaultDeposit)
+    .values({
+      id,
+      chainId,
+      asset,
+      vault: event.log.address,
+      depositor,
+      amount: amount.toString(),
+      commitment: commitment.toString(),
+      precommitment: precommitment.toString(),
+      label: label.toString(),
+      nonce: nonce.toString(),
+      blockNumber: event.block.number,
+      blockTimestamp: event.block.timestamp,
+      txHash: event.transaction.hash,
+    })
+    .onConflictDoNothing();
 }
 
 async function insertSwap(
@@ -72,49 +80,60 @@ async function insertSwap(
   const { recipient, _param, _spentNullifier, _newCommitment, _newLabel } = event.args;
   const id = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  await context.db.insert(schema.vaultSwap).values({
-    id,
-    chainId,
-    asset,
-    vault: event.log.address,
-    recipient,
-    pool: _param.pool,
-    srcToken: _param.srcToken,
-    dstToken: _param.dstToken,
-    amountIn: _param.amountIn.toString(),
-    minAmountOut: _param.minAmountOut.toString(),
-    fee: _param.fee.toString(),
-    spentNullifier: _spentNullifier.toString(),
-    newCommitment: _newCommitment.toString(),
-    newLabel: _newLabel.toString(),
-    blockNumber: event.block.number,
-    blockTimestamp: event.block.timestamp,
-    txHash: event.transaction.hash,
+  await context.db
+    .insert(schema.vaultSwap)
+    .values({
+      id,
+      chainId,
+      asset,
+      vault: event.log.address,
+      recipient,
+      pool: _param.pool,
+      srcToken: _param.srcToken,
+      dstToken: _param.dstToken,
+      amountIn: _param.amountIn.toString(),
+      minAmountOut: _param.minAmountOut.toString(),
+      fee: _param.fee.toString(),
+      spentNullifier: _spentNullifier.toString(),
+      newCommitment: _newCommitment.toString(),
+      newLabel: _newLabel.toString(),
+      blockNumber: event.block.number,
+      blockTimestamp: event.block.timestamp,
+      txHash: event.transaction.hash,
+    })
+    .onConflictDoNothing();
+}
+
+const indexerScope = parseIndexerScope(process.env.INDEXER_SCOPE);
+
+if (includesBase(indexerScope)) {
+  ponder.on("VaultBaseEth:Deposited", async ({ event, context }) => {
+    await insertDeposit(event, context, 8453, "ETH");
+  });
+  ponder.on("VaultBaseUsdc:Deposited", async ({ event, context }) => {
+    await insertDeposit(event, context, 8453, "USDC");
+  });
+
+  ponder.on("VaultBaseEth:Swapped", async ({ event, context }) => {
+    await insertSwap(event, context, 8453, "ETH");
+  });
+  ponder.on("VaultBaseUsdc:Swapped", async ({ event, context }) => {
+    await insertSwap(event, context, 8453, "USDC");
   });
 }
 
-ponder.on("VaultBaseEth:Deposited", async ({ event, context }) => {
-  await insertDeposit(event, context, 8453, "ETH");
-});
-ponder.on("VaultBaseUsdc:Deposited", async ({ event, context }) => {
-  await insertDeposit(event, context, 8453, "USDC");
-});
-ponder.on("VaultSepoliaEth:Deposited", async ({ event, context }) => {
-  await insertDeposit(event, context, 11155111, "ETH");
-});
-ponder.on("VaultSepoliaUsdc:Deposited", async ({ event, context }) => {
-  await insertDeposit(event, context, 11155111, "USDC");
-});
+if (includesSepolia(indexerScope)) {
+  ponder.on("VaultSepoliaEth:Deposited", async ({ event, context }) => {
+    await insertDeposit(event, context, 11155111, "ETH");
+  });
+  ponder.on("VaultSepoliaUsdc:Deposited", async ({ event, context }) => {
+    await insertDeposit(event, context, 11155111, "USDC");
+  });
 
-ponder.on("VaultBaseEth:Swapped", async ({ event, context }) => {
-  await insertSwap(event, context, 8453, "ETH");
-});
-ponder.on("VaultBaseUsdc:Swapped", async ({ event, context }) => {
-  await insertSwap(event, context, 8453, "USDC");
-});
-ponder.on("VaultSepoliaEth:Swapped", async ({ event, context }) => {
-  await insertSwap(event, context, 11155111, "ETH");
-});
-ponder.on("VaultSepoliaUsdc:Swapped", async ({ event, context }) => {
-  await insertSwap(event, context, 11155111, "USDC");
-});
+  ponder.on("VaultSepoliaEth:Swapped", async ({ event, context }) => {
+    await insertSwap(event, context, 11155111, "ETH");
+  });
+  ponder.on("VaultSepoliaUsdc:Swapped", async ({ event, context }) => {
+    await insertSwap(event, context, 11155111, "USDC");
+  });
+}
