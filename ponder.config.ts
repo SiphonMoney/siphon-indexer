@@ -34,6 +34,7 @@ import {
   includesSepolia,
   parseIndexerScope,
 } from "./src/indexerScope";
+import { verifyIndexerBindings } from "./src/generationManifest";
 
 /**
  * HTTP transport that splits eth_getLogs into ≤maxRange block windows. Free-tier RPCs cap the
@@ -101,6 +102,10 @@ function block(name: string, fallback: number): number {
 const baseDeployBlock = block("BASE_DEPLOY_BLOCK", 47_815_995);
 const sepoliaDeployBlock = block("SEPOLIA_DEPLOY_BLOCK", 11_130_700);
 const indexerScope = parseIndexerScope(process.env.INDEXER_SCOPE);
+
+// Fail closed before Ponder starts if this process's addresses drift from the
+// checksum-pinned generation manifest (no-op when no manifest is configured).
+verifyIndexerBindings();
 
 const mixerContracts: Record<
   string,

@@ -7,6 +7,101 @@ const app = new Hono();
 
 const MAX_PAGE = 100_000;
 
+const IDENTITY_CHAINS: Record<string, { chainId: number; ponderChain: string; prefix: string }> = {
+  base: { chainId: 8453, ponderChain: "base", prefix: "BASE" },
+  sepolia: { chainId: 11155111, ponderChain: "ethSepolia", prefix: "SEPOLIA" },
+};
+
+async function rpcBlockNumber(rpc: string | undefined): Promise<number | null> {
+  if (!rpc) return null;
+  try {
+    const response = await fetch(rpc, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    const body = (await response.json()) as { result?: string };
+    return body.result ? Number(BigInt(body.result)) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ponderIndexedBlock(ponderChain: string): Promise<number | null> {
+  try {
+    const port = process.env.PORT || "42069";
+    const response = await fetch(`http://127.0.0.1:${port}/status`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    const body = (await response.json()) as Record<string, { block?: { number?: number } }>;
+    const block = body?.[ponderChain]?.block?.number;
+    return typeof block === "number" ? block : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GET /identity — who this indexer process is and how fresh it is.
+ *
+ * Reports the vault generation, chain, contract bindings, Ponder-indexed block, chain
+ * head, lag, and per-asset leaf count/tip root so operators and consumers can verify
+ * they are talking to the intended generation without shell access.
+ */
+app.get("/identity", async (c) => {
+  const scope = (process.env.INDEXER_SCOPE || "").trim().toLowerCase();
+  const target = IDENTITY_CHAINS[scope];
+  if (!target) {
+    return c.json({ error: `INDEXER_SCOPE=${scope || "<empty>"} has no single-chain identity` }, 500);
+  }
+
+  const rpc = process.env[`PONDER_RPC_URL_${target.chainId}`];
+  const [chainHead, indexedBlock] = await Promise.all([
+    rpcBlockNumber(rpc),
+    ponderIndexedBlock(target.ponderChain),
+  ]);
+
+  const assets: Record<string, unknown> = {};
+  for (const asset of ["ETH", "USDC"]) {
+    const where = and(
+      eq(schema.merkleLeaf.chainId, target.chainId),
+      eq(schema.merkleLeaf.asset, asset),
+    );
+    const [countRow] = await db.select({ n: count() }).from(schema.merkleLeaf).where(where);
+    const [tip] = await db
+      .select({
+        root: schema.merkleLeaf.root,
+        leafIndex: schema.merkleLeaf.leafIndex,
+        blockNumber: schema.merkleLeaf.blockNumber,
+      })
+      .from(schema.merkleLeaf)
+      .where(where)
+      .orderBy(desc(schema.merkleLeaf.leafIndex))
+      .limit(1);
+    assets[asset] = {
+      vault: process.env[`VAULT_${target.prefix}_${asset}`] || null,
+      tree: process.env[`MERKLE_TREE_${target.prefix}_${asset}`] || null,
+      leafCount: Number(countRow?.n ?? 0),
+      tipLeafIndex: tip ? Number(tip.leafIndex) : null,
+      tipRoot: tip?.root ?? null,
+      lastLeafBlock: tip ? Number(tip.blockNumber) : null,
+    };
+  }
+
+  return c.json({
+    generationId: process.env.INDEXER_GENERATION_ID?.trim() || null,
+    scope,
+    chainId: target.chainId,
+    entrypoint: process.env.INDEXER_ENTRYPOINT?.trim() || null,
+    schema: process.env.DATABASE_SCHEMA || null,
+    indexedBlock,
+    chainHead,
+    lag: indexedBlock !== null && chainHead !== null ? chainHead - indexedBlock : null,
+    assets,
+  });
+});
+
 /**
  * GET /leaves?chainId=&asset=&fromIndex=&limit=
  *
