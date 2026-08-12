@@ -4,7 +4,8 @@
 Ethereum Sepolia. They may share the `siphon_indexer` database server, but each owns a separate
 Ponder schema and RPC. A failure on either chain cannot terminate or rebuild the other chain's
 indexer. Each container runs a small supervisor that waits during RPC outages instead of exiting
-into a Docker restart loop.
+into a Docker restart loop. It also gracefully recycles a live child every 30 minutes so a wedged
+Ponder process has a bounded recovery window while retaining its durable checkpoint.
 
 - [Topology](#topology)
 - [Prerequisites](#prerequisites)
@@ -220,7 +221,7 @@ appear within seconds.
 
 | Symptom | Check | Action |
 |---|---|---|
-| `/vault-index/*` → 503 | `INDEXER_DB_URI` set on executor? | Set it, redeploy executor |
+| `/vault-index/*` → 503 | Correct chain-specific `INDEXER_DB_URI_BASE` / `INDEXER_DB_URI_SEPOLIA` set on executor? | Set the missing URI, redeploy executor |
 | `count` stuck at 0 | `_ponder_checkpoint` progress; RPC rate limits | Use dedicated RPC; wait for backfill |
 | Frontend flooding `/api/rpc` | `/vault-index/health` reachable? | Restart indexer / fix DB connectivity |
 | Container restart loop | `DATABASE_URL` + address vars present? | Fix env; addresses come from `resolve-addresses` |

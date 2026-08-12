@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   chainIdForScope,
   rpcReady,
@@ -69,5 +70,11 @@ describe("indexer supervisor", () => {
     });
 
     expect(starts).toBe(2);
+  });
+
+  test("bounds recovery time for a live but wedged Ponder child", () => {
+    const source = readFileSync(new URL("../scripts/indexer-supervisor.mjs", import.meta.url), "utf8");
+    expect(source).toContain("INDEXER_CHILD_RECYCLE_MS");
+    expect(source).toContain('child.kill("SIGTERM")');
   });
 });

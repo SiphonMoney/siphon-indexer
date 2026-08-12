@@ -9,6 +9,13 @@ const GET_SIZE_ABI = [
     inputs: [],
     outputs: [{ type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "getRoot",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
 ];
 
 export function healthTargetsForScope(scope, env = process.env) {
@@ -27,10 +34,13 @@ export function healthTargetsForScope(scope, env = process.env) {
   throw new Error(`INDEXER_SCOPE must be base or sepolia, got ${scope || "<empty>"}`);
 }
 
-export function assessFreshness(indexed, onChainSize) {
+export function assessFreshness(indexed, onChainSize, onChainRoot) {
   if (!indexed?.contiguous) return { ok: false, reason: "indexed leaves are not contiguous" };
   if (indexed.totalCount !== onChainSize) {
     return { ok: false, reason: `indexed ${indexed.totalCount} of ${onChainSize} leaves` };
+  }
+  if (onChainSize > 0 && String(indexed.tipRoot) !== String(onChainRoot)) {
+    return { ok: false, reason: "indexed tip root does not match chain" };
   }
   return { ok: true };
 }
@@ -41,23 +51,31 @@ async function json(url, init) {
   return response.json();
 }
 
-async function onChainSize(target) {
+async function onChainState(target) {
   if (!target.rpc || !target.tree) throw new Error(`missing RPC/tree for ${target.asset}`);
-  const body = await json(target.rpc, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_call",
-      params: [
-        { to: target.tree, data: encodeFunctionData({ abi: GET_SIZE_ABI, functionName: "getSize" }) },
-        "latest",
-      ],
-    }),
-  });
-  if (!body.result) throw new Error(body.error?.message || "eth_call returned no result");
-  return Number(decodeFunctionResult({ abi: GET_SIZE_ABI, functionName: "getSize", data: body.result }));
+  const call = async (functionName) => {
+    const body = await json(target.rpc, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_call",
+        params: [
+          { to: target.tree, data: encodeFunctionData({ abi: GET_SIZE_ABI, functionName }) },
+          "latest",
+        ],
+      }),
+    });
+    if (!body.result) throw new Error(body.error?.message || `${functionName} returned no result`);
+    return body.result;
+  };
+  const sizeData = await call("getSize");
+  const rootData = await call("getRoot");
+  return {
+    size: Number(decodeFunctionResult({ abi: GET_SIZE_ABI, functionName: "getSize", data: sizeData })),
+    root: String(decodeFunctionResult({ abi: GET_SIZE_ABI, functionName: "getRoot", data: rootData })),
+  };
 }
 
 export async function checkIndexerHealth(env = process.env) {
@@ -66,7 +84,8 @@ export async function checkIndexerHealth(env = process.env) {
     const indexed = await json(
       `http://127.0.0.1:42069/leaves?chainId=${target.chainId}&asset=${target.asset}&limit=1`,
     );
-    const result = assessFreshness(indexed, await onChainSize(target));
+    const chain = await onChainState(target);
+    const result = assessFreshness(indexed, chain.size, chain.root);
     if (!result.ok) throw new Error(`${target.chainId}/${target.asset}: ${result.reason}`);
   }
 }
