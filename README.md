@@ -131,6 +131,7 @@ All configuration is via environment variables. See [`.env.example`](./.env.exam
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | ✅ | Postgres connection string for the `siphon_indexer` database |
+| `INDEXER_SCOPE` | Production | `base` or `sepolia`; use one isolated process/schema per value (`all` is local-only) |
 | `PONDER_RPC_URL_8453` | ✅ | Base mainnet RPC (use a dedicated key in prod) |
 | `PONDER_RPC_URL_11155111` | ✅ | Ethereum Sepolia RPC |
 | `BASE_DEPLOY_BLOCK` | — | Earliest block to scan on Base (default `47815995`) |

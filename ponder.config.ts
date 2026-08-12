@@ -29,6 +29,11 @@ import {
 } from "./abis/ThirdPartyBridges";
 import { BASE_MIXER_POOLS, indexBaseMixers, mixerStartBlock } from "./src/mixerPools.base";
 import { ETH_TORNADO_POOLS, ethMixerStartBlock, indexEthTornado } from "./src/mixerPools.eth";
+import {
+  includesBase,
+  includesSepolia,
+  parseIndexerScope,
+} from "./src/indexerScope";
 
 /**
  * HTTP transport that splits eth_getLogs into ≤maxRange block windows. Free-tier RPCs cap the
@@ -95,6 +100,7 @@ function block(name: string, fallback: number): number {
 // MerkleTree + Vault addresses — run `npm run resolve-addresses` to populate .env.local
 const baseDeployBlock = block("BASE_DEPLOY_BLOCK", 47_815_995);
 const sepoliaDeployBlock = block("SEPOLIA_DEPLOY_BLOCK", 11_130_700);
+const indexerScope = parseIndexerScope(process.env.INDEXER_SCOPE);
 
 const mixerContracts: Record<
   string,
@@ -115,7 +121,7 @@ const mixerContracts: Record<
   }
 > = {};
 
-if (indexBaseMixers()) {
+if (includesBase(indexerScope) && indexBaseMixers()) {
   for (const p of BASE_MIXER_POOLS) {
     const startBlock = mixerStartBlock(p.defaultStartBlock);
     if (p.kind === "veil_entry") {
@@ -143,7 +149,7 @@ if (indexBaseMixers()) {
   }
 }
 
-if (indexBaseBridges()) {
+if (includesBase(indexerScope) && indexBaseBridges()) {
   mixerContracts.BaseL2StandardBridge = {
     abi: StandardBridgeAbi,
     chain: "base",
@@ -153,7 +159,7 @@ if (indexBaseBridges()) {
   };
 }
 
-if (indexEthTornado()) {
+if (indexerScope === "all" && indexEthTornado()) {
   for (const p of ETH_TORNADO_POOLS) {
     mixerContracts[p.id] = {
       abi: TornadoClassicPoolAbi,
@@ -164,7 +170,7 @@ if (indexEthTornado()) {
   }
 }
 
-if (indexThirdPartyBridges()) {
+if (indexerScope === "all" && indexThirdPartyBridges()) {
   const tpStart = thirdPartyBridgeStartBlock(15_000_000);
   const baseTpStart = thirdPartyBridgeStartBlock(10_000_000);
   mixerContracts.AcrossSpokeBase = {
@@ -225,26 +231,32 @@ if (indexThirdPartyBridges()) {
   });
 }
 
-const needEthereum = indexEthTornado() || indexThirdPartyBridges();
+const needEthereum =
+  indexerScope === "all" && (indexEthTornado() || indexThirdPartyBridges());
 
 const chains: Record<
   string,
   { id: number; rpc: Transport; maxRequestsPerSecond: number }
-> = {
-  base: {
+> = {};
+
+if (includesBase(indexerScope)) {
+  chains.base = {
     id: 8453,
     rpc: cappedLogsTransport(req("PONDER_RPC_URL_8453")),
     maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
-  },
-  ethSepolia: {
+  };
+}
+
+if (includesSepolia(indexerScope)) {
+  chains.ethSepolia = {
     id: 11155111,
     rpc: cappedLogsTransport(
       req("PONDER_RPC_URL_11155111"),
       BigInt(process.env.SEPOLIA_LOG_MAXRANGE || "10"),
     ),
     maxRequestsPerSecond: parseInt(process.env.PONDER_MAX_RPS || "15", 10),
-  },
-};
+  };
+}
 
 if (needEthereum) {
   chains.ethereum = {
@@ -264,54 +276,62 @@ export default createConfig({
   },
   chains,
   contracts: {
-    MerkleTreeBaseEth: {
-      abi: MerkleTreeAbi,
-      chain: "base",
-      address: reqAddress("MERKLE_TREE_BASE_ETH"),
-      startBlock: baseDeployBlock,
-    },
-    MerkleTreeBaseUsdc: {
-      abi: MerkleTreeAbi,
-      chain: "base",
-      address: reqAddress("MERKLE_TREE_BASE_USDC"),
-      startBlock: baseDeployBlock,
-    },
-    MerkleTreeSepoliaEth: {
-      abi: MerkleTreeAbi,
-      chain: "ethSepolia",
-      address: reqAddress("MERKLE_TREE_SEPOLIA_ETH"),
-      startBlock: sepoliaDeployBlock,
-    },
-    MerkleTreeSepoliaUsdc: {
-      abi: MerkleTreeAbi,
-      chain: "ethSepolia",
-      address: reqAddress("MERKLE_TREE_SEPOLIA_USDC"),
-      startBlock: sepoliaDeployBlock,
-    },
-    VaultBaseEth: {
-      abi: VaultAbi,
-      chain: "base",
-      address: reqAddress("VAULT_BASE_ETH"),
-      startBlock: baseDeployBlock,
-    },
-    VaultBaseUsdc: {
-      abi: VaultAbi,
-      chain: "base",
-      address: reqAddress("VAULT_BASE_USDC"),
-      startBlock: baseDeployBlock,
-    },
-    VaultSepoliaEth: {
-      abi: VaultAbi,
-      chain: "ethSepolia",
-      address: reqAddress("VAULT_SEPOLIA_ETH"),
-      startBlock: sepoliaDeployBlock,
-    },
-    VaultSepoliaUsdc: {
-      abi: VaultAbi,
-      chain: "ethSepolia",
-      address: reqAddress("VAULT_SEPOLIA_USDC"),
-      startBlock: sepoliaDeployBlock,
-    },
+    ...(includesBase(indexerScope)
+      ? {
+          MerkleTreeBaseEth: {
+            abi: MerkleTreeAbi,
+            chain: "base",
+            address: reqAddress("MERKLE_TREE_BASE_ETH"),
+            startBlock: baseDeployBlock,
+          },
+          MerkleTreeBaseUsdc: {
+            abi: MerkleTreeAbi,
+            chain: "base",
+            address: reqAddress("MERKLE_TREE_BASE_USDC"),
+            startBlock: baseDeployBlock,
+          },
+          VaultBaseEth: {
+            abi: VaultAbi,
+            chain: "base",
+            address: reqAddress("VAULT_BASE_ETH"),
+            startBlock: baseDeployBlock,
+          },
+          VaultBaseUsdc: {
+            abi: VaultAbi,
+            chain: "base",
+            address: reqAddress("VAULT_BASE_USDC"),
+            startBlock: baseDeployBlock,
+          },
+        }
+      : {}),
+    ...(includesSepolia(indexerScope)
+      ? {
+          MerkleTreeSepoliaEth: {
+            abi: MerkleTreeAbi,
+            chain: "ethSepolia",
+            address: reqAddress("MERKLE_TREE_SEPOLIA_ETH"),
+            startBlock: sepoliaDeployBlock,
+          },
+          MerkleTreeSepoliaUsdc: {
+            abi: MerkleTreeAbi,
+            chain: "ethSepolia",
+            address: reqAddress("MERKLE_TREE_SEPOLIA_USDC"),
+            startBlock: sepoliaDeployBlock,
+          },
+          VaultSepoliaEth: {
+            abi: VaultAbi,
+            chain: "ethSepolia",
+            address: reqAddress("VAULT_SEPOLIA_ETH"),
+            startBlock: sepoliaDeployBlock,
+          },
+          VaultSepoliaUsdc: {
+            abi: VaultAbi,
+            chain: "ethSepolia",
+            address: reqAddress("VAULT_SEPOLIA_USDC"),
+            startBlock: sepoliaDeployBlock,
+          },
+        }
+      : {}),
     ...mixerContracts,
   },
 });

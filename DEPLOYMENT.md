@@ -1,8 +1,10 @@
 # Deployment
 
-`siphon-indexer` deploys as an independent, long-running Docker service — the same pattern as
-`siphon-fhe`. It needs three things: a Postgres database (`siphon_indexer`), RPC endpoints, and
-the resolved contract addresses.
+`siphon-indexer` deploys as two independent long-running Docker services: one for Base and one for
+Ethereum Sepolia. They may share the `siphon_indexer` database server, but each owns a separate
+Ponder schema and RPC. A failure on either chain cannot terminate or rebuild the other chain's
+indexer. Each container runs a small supervisor that waits during RPC outages instead of exiting
+into a Docker restart loop.
 
 - [Topology](#topology)
 - [Prerequisites](#prerequisites)
@@ -27,11 +29,14 @@ a dedicated `siphon_indexer` **database** (separate from `siphon_strategies`).
 ┌──────────────────────────── Host / EC2 ────────────────────────────┐
 │  trade-executor :5005 ──┐                                           │
 │  fhe-engine     :5001   │  (public via ALB/Caddy)                   │
-│  siphon-indexer :42069 ─┘  (INTERNAL ONLY — do not expose)          │
+│  indexer-base    :42069 ─┤  (INTERNAL ONLY — do not expose)          │
+│  indexer-sepolia :42070 ─┘                                           │
 └───────────────────────────────┬─────────────────────────────────────┘
                                  │
                     Postgres (local container or RDS)
                     ├── siphon_indexer     ← Ponder writes, executor reads
+                    │   ├── feepool2_base
+                    │   └── feepool2_sepolia
                     └── siphon_strategies  ← trade-executor
 ```
 
@@ -105,42 +110,43 @@ docker tag siphon-indexer:latest $ECR/siphon-indexer:latest
 docker push $ECR/siphon-indexer:latest
 ```
 
-The image runs `npm run start` (`ponder start`) — the production, no-reload mode.
+The image runs `npm run start`, which supervises the production `ponder start` child. It validates
+the configured chain ID before launch and keeps the container alive with bounded retries if the RPC
+or child process fails.
 
 ---
 
 ## Step 4 — Run the indexer
 
-The container needs `DATABASE_URL`, both RPC URLs, and the resolved addresses.
+Each container needs `DATABASE_URL`, exactly one RPC URL, and only that chain's addresses.
 
 **Plain Docker:**
 
 ```bash
-docker run -d --name siphon-indexer \
+docker run -d --name siphon-indexer-base \
   --restart unless-stopped \
   --network siphon-network \
   -e DATABASE_URL="postgresql://siphon:PASS@postgres:5432/siphon_indexer" \
+  -e INDEXER_SCOPE=base \
+  -e DATABASE_SCHEMA=feepool2_base \
   -e PONDER_RPC_URL_8453="https://base-mainnet.g.alchemy.com/v2/KEY" \
-  -e PONDER_RPC_URL_11155111="https://eth-sepolia.g.alchemy.com/v2/KEY" \
   -e BASE_DEPLOY_BLOCK=47815995 \
-  -e SEPOLIA_DEPLOY_BLOCK=11130700 \
   -e MERKLE_TREE_BASE_ETH=0x... \
   -e MERKLE_TREE_BASE_USDC=0x... \
-  -e MERKLE_TREE_SEPOLIA_ETH=0x... \
-  -e MERKLE_TREE_SEPOLIA_USDC=0x... \
   -e VAULT_BASE_ETH=0x... \
   -e VAULT_BASE_USDC=0x... \
-  -e VAULT_SEPOLIA_ETH=0x... \
-  -e VAULT_SEPOLIA_USDC=0x... \
   $ECR/siphon-indexer:latest
 ```
+
+Run a second container with `INDEXER_SCOPE=sepolia`, `DATABASE_SCHEMA=feepool2_sepolia`, port
+`42070:42069`, `PONDER_RPC_URL_11155111`, and only the Sepolia address variables.
 
 **docker-compose (staging convenience — in the `siphon-fhe` stack):** a `siphon-indexer` service
 is already defined and reads these vars from the environment. Bring it up with:
 
 ```bash
 cd siphon-fhe
-docker compose up -d postgres siphon-indexer trade-executor
+docker compose up -d postgres siphon-indexer-base siphon-indexer-sepolia trade-executor
 ```
 
 > In production, pull the image from ECR rather than building `../siphon-indexer` from source, to
@@ -153,7 +159,8 @@ docker compose up -d postgres siphon-indexer trade-executor
 Give the trade-executor read access to the same database. In `siphon-fhe` deployment env:
 
 ```bash
-INDEXER_DB_URI=postgresql://siphon:PASS@postgres:5432/siphon_indexer
+INDEXER_DB_URI_BASE=postgresql://siphon:PASS@postgres:5432/siphon_indexer?options=-csearch_path%3Dfeepool2_base,public
+INDEXER_DB_URI_SEPOLIA=postgresql://siphon:PASS@postgres:5432/siphon_indexer?options=-csearch_path%3Dfeepool2_sepolia,public
 ```
 
 `vault_index.py` is already registered in `app.py`; it exposes `/vault-index/*`. Redeploy the
@@ -223,9 +230,10 @@ appear within seconds.
 **Restart:**
 
 ```bash
-docker restart siphon-indexer
-docker logs -f siphon-indexer
+docker restart siphon-indexer-base siphon-indexer-sepolia
+docker logs -f siphon-indexer-base
 ```
 
-**Full re-index (rare):** drop the `siphon_indexer` database, recreate it, restart the container.
-Only necessary if the indexed data is corrupt or the schema changed incompatibly.
+**Full re-index (rare):** drop only the affected `feepool2_base` or `feepool2_sepolia` schema, then
+restart that chain's container. Never drop the shared `siphon_indexer` database to repair one chain.
+Only necessary if indexed data is corrupt or the schema changed incompatibly.

@@ -1,6 +1,7 @@
 import { ponder } from "ponder:registry";
 import schema from "ponder:schema";
 import { indexBaseBridges } from "../abis/CrossChainGraph";
+import { includesBase, parseIndexerScope } from "./indexerScope";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const BASE = 8453;
@@ -54,7 +55,10 @@ async function insertEdge(
  * - *BridgeFinalized = L1→L2 arrival (from=L1 sender, to=L2 recipient)
  * - *BridgeInitiated = L2→L1 start (from=L2 sender, to=L1 recipient)
  */
-if (indexBaseBridges()) {
+if (
+  includesBase(parseIndexerScope(process.env.INDEXER_SCOPE)) &&
+  indexBaseBridges()
+) {
   ponder.on("BaseL2StandardBridge:ETHBridgeFinalized", async ({ event, context }) => {
     await insertEdge(context, {
       direction: "eth_to_base",

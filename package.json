@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "ponder dev",
-    "start": "ponder start",
+    "start": "node scripts/indexer-supervisor.mjs",
     "codegen": "ponder codegen",
     "resolve-addresses": "tsx scripts/resolve-addresses.ts",
     "test": "bun test tests"

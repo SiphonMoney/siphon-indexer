@@ -8,10 +8,14 @@ import {
   stargateBasePools,
   stargateEthPools,
 } from "../abis/ThirdPartyBridges";
+import { parseIndexerScope } from "./indexerScope";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 const BASE = 8453;
 const ETH = 1;
+const registerThirdPartyHandlers =
+  parseIndexerScope(process.env.INDEXER_SCOPE) === "all" &&
+  indexThirdPartyBridges();
 
 type DbCtx = {
   db: {
@@ -282,7 +286,7 @@ async function onOftReceived(
 }
 
 // --- Across ---
-if (indexThirdPartyBridges()) {
+if (registerThirdPartyHandlers) {
   ponder.on("AcrossSpokeBase:FilledV3Relay", async ({ event, context }) => {
     if (Number(event.args.originChainId) !== ETH) return;
     const updated = event.args.relayExecutionInfo?.updatedRecipient as string | undefined;
@@ -363,7 +367,7 @@ if (indexThirdPartyBridges()) {
 }
 
 // --- Hop classic ETH + USDC.e ---
-if (indexThirdPartyBridges() && indexHopBridges()) {
+if (registerThirdPartyHandlers && indexHopBridges()) {
   ponder.on("HopEthL1:TransferSentToL2", async ({ event, context }) => {
     if (Number(event.args.chainId) !== BASE) return;
     const from = event.transaction.from;
@@ -446,7 +450,7 @@ if (indexThirdPartyBridges() && indexHopBridges()) {
 }
 
 // --- Stargate OFT guid-join (defaults: native + USDC on each chain) ---
-if (indexThirdPartyBridges()) {
+if (registerThirdPartyHandlers) {
   const baseN = stargateBasePools().length;
   const ethN = stargateEthPools().length;
 
