@@ -3,14 +3,19 @@ import { assessFreshness, healthTargetsForScope } from "../scripts/indexer-healt
 
 describe("chain indexer health", () => {
   test("requires each configured asset to be contiguous and caught up", () => {
-    expect(assessFreshness({ totalCount: 57, contiguous: true }, 57)).toEqual({ ok: true });
-    expect(assessFreshness({ totalCount: 56, contiguous: true }, 57)).toEqual({
+    const root = "123456";
+    expect(assessFreshness({ totalCount: 57, contiguous: true, tipRoot: root }, 57, root)).toEqual({ ok: true });
+    expect(assessFreshness({ totalCount: 56, contiguous: true, tipRoot: root }, 57, root)).toEqual({
       ok: false,
       reason: "indexed 56 of 57 leaves",
     });
-    expect(assessFreshness({ totalCount: 57, contiguous: false }, 57)).toEqual({
+    expect(assessFreshness({ totalCount: 57, contiguous: false, tipRoot: root }, 57, root)).toEqual({
       ok: false,
       reason: "indexed leaves are not contiguous",
+    });
+    expect(assessFreshness({ totalCount: 57, contiguous: true, tipRoot: "999" }, 57, root)).toEqual({
+      ok: false,
+      reason: "indexed tip root does not match chain",
     });
   });
 

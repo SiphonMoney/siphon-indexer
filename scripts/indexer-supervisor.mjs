@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_RETRY_MS = 15_000;
+const DEFAULT_CHILD_RECYCLE_MS = 30 * 60_000;
 
 export function rpcUrlsForScope(scope, env = process.env) {
   if (scope === "base") return [env.PONDER_RPC_URL_8453].filter(Boolean);
@@ -41,8 +42,19 @@ function spawnPonder(signal) {
       env: process.env,
       signal,
     });
-    child.on("error", () => resolve(1));
-    child.on("exit", (code, childSignal) => resolve(childSignal ? 1 : code ?? 1));
+    // A live-but-wedged child may never exit and Docker does not restart merely unhealthy
+    // containers. Periodic graceful recycling gives every chain a bounded self-healing window;
+    // Ponder resumes from its durable checkpoint and replay-safe handlers are idempotent.
+    const recycleMs = Number(process.env.INDEXER_CHILD_RECYCLE_MS || DEFAULT_CHILD_RECYCLE_MS);
+    const recycle = setTimeout(() => child.kill("SIGTERM"), recycleMs);
+    child.on("error", () => {
+      clearTimeout(recycle);
+      resolve(1);
+    });
+    child.on("exit", (code, childSignal) => {
+      clearTimeout(recycle);
+      resolve(childSignal ? 1 : code ?? 1);
+    });
   });
 }
 
