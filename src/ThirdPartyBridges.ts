@@ -16,7 +16,9 @@ const ETH = 1;
 type DbCtx = {
   db: {
     insert: (table: unknown) => {
-      values: (v: Record<string, unknown>) => Promise<unknown>;
+      values: (v: Record<string, unknown>) => Promise<unknown> & {
+        onConflictDoNothing: () => Promise<unknown>;
+      };
     };
     find: (
       table: typeof schema.stargateGuid,
@@ -68,7 +70,7 @@ async function insertEdge(
     blockNumber: args.blockNumber,
     blockTimestamp: args.blockTimestamp,
     txHash: args.txHash,
-  });
+  }).onConflictDoNothing();
 }
 
 function eidToChain(eid: number): number | null {
@@ -172,7 +174,7 @@ async function onOftSent(
       dstBlockNumber: 0n,
       dstBlockTimestamp: 0n,
       complete: false,
-    });
+    }).onConflictDoNothing();
     return;
   }
 
@@ -248,7 +250,7 @@ async function onOftReceived(
       dstBlockNumber: args.blockNumber,
       dstBlockTimestamp: args.blockTimestamp,
       complete: false,
-    });
+    }).onConflictDoNothing();
     return;
   }
 

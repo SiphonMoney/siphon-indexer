@@ -60,7 +60,7 @@ async function insertDeposit(
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
     txHash: event.transaction.hash,
-  });
+  }).onConflictDoNothing();
 }
 
 async function insertSwap(
@@ -90,7 +90,7 @@ async function insertSwap(
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
     txHash: event.transaction.hash,
-  });
+  }).onConflictDoNothing();
 }
 
 ponder.on("VaultBaseEth:Deposited", async ({ event, context }) => {

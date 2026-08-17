@@ -10,7 +10,9 @@ async function insertEdge(
   context: {
     db: {
       insert: (table: typeof schema.bridgeEdge) => {
-        values: (v: Record<string, unknown>) => Promise<unknown>;
+        values: (v: Record<string, unknown>) => Promise<unknown> & {
+          onConflictDoNothing: () => Promise<unknown>;
+        };
       };
     };
   },
@@ -46,7 +48,7 @@ async function insertEdge(
     blockNumber: args.blockNumber,
     blockTimestamp: args.blockTimestamp,
     txHash: args.txHash,
-  });
+  }).onConflictDoNothing();
 }
 
 /**
