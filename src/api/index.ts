@@ -7,6 +7,9 @@ const app = new Hono();
 
 const MAX_PAGE = 100_000;
 
+const indexMixerTouches =
+  !["0", "false", "no"].includes((process.env.INDEX_MIXER_TOUCHES ?? "1").trim().toLowerCase());
+
 /**
  * GET /leaves?chainId=&asset=&fromIndex=&limit=
  *
@@ -206,6 +209,9 @@ app.get("/swaps", async (c) => {
  * Association set facts: Veil/Tornado-compatible pool counterparties on Base.
  */
 app.get("/mixer-touches", async (c) => {
+  if (!indexMixerTouches) {
+    return c.json({ error: "mixer_touches_disabled" }, 503);
+  }
   const chainId = Number(c.req.query("chainId") || "8453");
   const address = (c.req.query("address") || "").trim().toLowerCase();
   const direction = (c.req.query("direction") || "").trim();

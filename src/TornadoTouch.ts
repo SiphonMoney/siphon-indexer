@@ -7,6 +7,11 @@ import { insertTornadoTouch } from "./touchInsert";
 
 const CHAIN_ID = 8453;
 
+// Old compliance pipeline depended on "mixer touches" rows. We keep the indexer,
+// but can disable mixer-touch indexing/serving to save cost.
+const indexMixerTouches =
+  !["0", "false", "no"].includes((process.env.INDEX_MIXER_TOUCHES ?? "1").trim().toLowerCase());
+
 /** Dedup RPC decode during multi-nullifier withdraw txs. */
 const recipientCache = new Map<string, string | null>();
 
@@ -59,7 +64,7 @@ async function recipientFromNovaTx(
 }
 
 const registerBaseMixerHandlers =
-  includesBase(parseIndexerScope(process.env.INDEXER_SCOPE)) && indexBaseMixers();
+  indexMixerTouches && includesBase(parseIndexerScope(process.env.INDEXER_SCOPE)) && indexBaseMixers();
 
 if (registerBaseMixerHandlers) {
 ponder.on("VeilEntry:DepositedETH", async ({ event, context }) => {

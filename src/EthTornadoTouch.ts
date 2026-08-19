@@ -5,6 +5,11 @@ import { parseIndexerScope } from "./indexerScope";
 
 const CHAIN_ID = 1;
 
+// Old compliance pipeline depended on "mixer touches" rows. We keep the indexer,
+// but can disable mixer-touch indexing/serving to save cost.
+const indexMixerTouches =
+  !["0", "false", "no"].includes((process.env.INDEX_MIXER_TOUCHES ?? "1").trim().toLowerCase());
+
 const labelByAddress = new Map(
   ETH_TORNADO_POOLS.map((p) => [p.address.toLowerCase(), p.label] as const),
 );
@@ -58,7 +63,7 @@ async function onDeposit(
   });
 }
 
-if (parseIndexerScope(process.env.INDEXER_SCOPE) === "all" && indexEthTornado()) {
+if (indexMixerTouches && parseIndexerScope(process.env.INDEXER_SCOPE) === "all" && indexEthTornado()) {
   ponder.on("TornadoEth01:Withdrawal", async ({ event, context }) => {
     await onWithdrawal(event, context);
   });
