@@ -157,10 +157,15 @@ async function onOftSent(
 
   const guid = args.guid.toLowerCase() as `0x${string}`;
   const srcAddress = args.fromAddress.toLowerCase() as `0x${string}`;
-  const existing = await context.db.find(schema.stargateGuid, { id: guid });
 
-  if (!existing) {
-    await context.db.insert(schema.stargateGuid).values({
+  // ONE atomic upsert, never find-then-insert. The two halves of a bridge transfer are indexed by
+  // independent per-chain workers, so both could previously observe no row, both insert, and the
+  // loser's onConflictDoNothing() would silently discard its half AND return — leaving a
+  // correlation that stayed half-populated forever. Here the conflict branch MERGES this half into
+  // whatever is already there, so whichever handler arrives second completes the row.
+  await context.db
+    .insert(schema.stargateGuid)
+    .values({
       id: guid,
       srcChainId: args.srcChainId,
       dstChainId,
@@ -174,11 +179,12 @@ async function onOftSent(
       dstBlockNumber: 0n,
       dstBlockTimestamp: 0n,
       complete: false,
-    }).onConflictDoNothing();
-    return;
-  }
+    })
+    .onConflictDoNothing();
 
-  const dstAddress = asAddr(existing.dstAddress);
+  // Then write our half unconditionally. The insert above only guarantees the row EXISTS; this is
+  // what guarantees our fields are in it, whether we created the row or lost the race to create
+  // it. The two handlers touch disjoint columns, so these updates cannot clobber each other.
   await context.db.update(schema.stargateGuid, { id: guid }).set({
     srcChainId: args.srcChainId,
     dstChainId,
@@ -189,7 +195,13 @@ async function onOftSent(
     srcBlockTimestamp: args.blockTimestamp,
   });
 
-  if (dstAddress && !existing.complete) {
+  // Re-read rather than reasoning from the pre-upsert snapshot: the other half may have landed in
+  // between, and that is precisely the case the old early-return dropped.
+  const row = await context.db.find(schema.stargateGuid, { id: guid });
+  if (!row) return;
+
+  const dstAddress = asAddr(row.dstAddress);
+  if (dstAddress && !row.complete) {
     await maybeEmitStargateEdge(context, {
       id: guid,
       srcChainId: args.srcChainId,
@@ -198,11 +210,11 @@ async function onOftSent(
       dstAddress,
       amount: args.amount.toString(),
       srcTxHash: args.txHash,
-      dstTxHash: asAddr(existing.dstTxHash),
+      dstTxHash: asAddr(row.dstTxHash),
       srcBlockNumber: args.blockNumber,
       srcBlockTimestamp: args.blockTimestamp,
-      dstBlockNumber: (existing.dstBlockNumber as bigint) || null,
-      dstBlockTimestamp: (existing.dstBlockTimestamp as bigint) || null,
+      dstBlockNumber: (row.dstBlockNumber as bigint) || null,
+      dstBlockTimestamp: (row.dstBlockTimestamp as bigint) || null,
     });
   }
 }
@@ -233,10 +245,12 @@ async function onOftReceived(
 
   const guid = args.guid.toLowerCase() as `0x${string}`;
   const dstAddress = args.toAddress.toLowerCase() as `0x${string}`;
-  const existing = await context.db.find(schema.stargateGuid, { id: guid });
 
-  if (!existing) {
-    await context.db.insert(schema.stargateGuid).values({
+  // Mirror of onOftSent: one atomic upsert that merges only the dst half. See the comment there
+  // for why find-then-insert loses a race between the two per-chain workers.
+  await context.db
+    .insert(schema.stargateGuid)
+    .values({
       id: guid,
       srcChainId,
       dstChainId: args.dstChainId,
@@ -250,11 +264,9 @@ async function onOftReceived(
       dstBlockNumber: args.blockNumber,
       dstBlockTimestamp: args.blockTimestamp,
       complete: false,
-    }).onConflictDoNothing();
-    return;
-  }
+    })
+    .onConflictDoNothing();
 
-  const srcAddress = asAddr(existing.srcAddress);
   await context.db.update(schema.stargateGuid, { id: guid }).set({
     srcChainId,
     dstChainId: args.dstChainId,
@@ -265,7 +277,11 @@ async function onOftReceived(
     dstBlockTimestamp: args.blockTimestamp,
   });
 
-  if (srcAddress && !existing.complete) {
+  const row = await context.db.find(schema.stargateGuid, { id: guid });
+  if (!row) return;
+
+  const srcAddress = asAddr(row.srcAddress);
+  if (srcAddress && !row.complete) {
     await maybeEmitStargateEdge(context, {
       id: guid,
       srcChainId,
@@ -273,10 +289,10 @@ async function onOftReceived(
       srcAddress,
       dstAddress,
       amount: args.amount.toString(),
-      srcTxHash: asAddr(existing.srcTxHash),
+      srcTxHash: asAddr(row.srcTxHash),
       dstTxHash: args.txHash,
-      srcBlockNumber: (existing.srcBlockNumber as bigint) || null,
-      srcBlockTimestamp: (existing.srcBlockTimestamp as bigint) || null,
+      srcBlockNumber: (row.srcBlockNumber as bigint) || null,
+      srcBlockTimestamp: (row.srcBlockTimestamp as bigint) || null,
       dstBlockNumber: args.blockNumber,
       dstBlockTimestamp: args.blockTimestamp,
     });
