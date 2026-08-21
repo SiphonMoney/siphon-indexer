@@ -270,6 +270,15 @@ if (needEthereum) {
 }
 
 export default createConfig({
+  // Ponder defaults to "omnichain", which holds every chain's events until ALL chains advance
+  // together. Ethereum mainnet here indexes years of mixer history, so Sepolia deposits finish
+  // their historical sync in seconds and are then never committed — the dapp sees a frozen leaf
+  // tip and reports "no spendable note" for funds that are demonstrably on-chain.
+  // The Siphon tables are per-chain keyed (merkle_leaf id = chainId-tree-index), so independent
+  // ordering is safe for the vault/leaf plane. Trade-off: the cross-chain bridge graph
+  // (BridgeEdge / ThirdPartyBridges) loses global ordering between its ETH and Base halves and
+  // may correlate an edge late; revisit if that correlation becomes load-bearing.
+  ordering: "multichain",
   database: {
     kind: "postgres",
     connectionString: req("DATABASE_URL"),

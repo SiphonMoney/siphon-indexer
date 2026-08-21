@@ -22,6 +22,11 @@ async function insertLeaf(
   const { _index, _leaf, _root } = event.args;
   const id = `${chainId}-${event.log.address.toLowerCase()}-${_index.toString()}`;
 
+  // Ponder delivers at-least-once (the same LeafInserted is replayed across the
+  // historical/realtime boundary and after a crash restart), so a bare insert dies with
+  // "duplicate key value violates unique constraint merkle_leaf_pkey" and crash-loops the
+  // indexer. A leaf is immutable for a given (chain, tree, index), so ignoring the repeat is
+  // correct rather than merely tolerant.
   await context.db
     .insert(schema.merkleLeaf)
     .values({

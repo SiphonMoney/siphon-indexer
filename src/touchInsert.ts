@@ -36,5 +36,5 @@ export async function insertTornadoTouch(
     blockNumber: args.blockNumber,
     blockTimestamp: args.blockTimestamp,
     txHash: args.txHash,
-  });
+  }).onConflictDoNothing();
 }
