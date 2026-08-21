@@ -24,9 +24,6 @@ PostgreSQL, so the dapp can reconcile balances with a single query instead of th
 - [Operations](#operations)
 - [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
-- [The Graph subgraph](./subgraph/README.md) (agent plane — does not replace Ponder)
-
-Handoff for agents + dual-plane ops: **siphon-app `docs/HANDOFF_GRAPH.md`** (sibling repo).
 
 For production deploy steps see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 For internals and data flow see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
@@ -44,20 +41,15 @@ Postgres server), never by importing each other's code.
 | Consumer | Path | Needs |
 |----------|------|--------|
 | **Dapp** (ZK leaves / deposit lookup) | Ponder → Postgres → trade-executor `/vault-index/leaves\|deposits` | **Ponder always** |
-| **Agents** (Builder / MCP) | The Graph Siphon subgraph (preferred) **or** Ponder `/anonymity-set` + `/swaps` fallback | Graph Studio **and/or** updated Ponder |
-
-The Graph subgraph package lives in this repo at [`subgraph/`](./subgraph/) — it does **not** replace Ponder. See **[siphon-app/docs/HANDOFF_GRAPH.md](../siphon-app/docs/HANDOFF_GRAPH.md)** (sibling checkout) for the full handoff.
+| **Agents** (Builder / MCP) | Ponder → `/anonymity-set` + `/swaps` (via trade-executor `/vault-index/*`) | Updated Ponder |
 
 ```
 On-chain events                Indexer                     Backend                Frontend / Agents
 ────────────────      ──────────────────────      ─────────────────────      ──────────────────
 MerkleTree.LeafInserted ─┐
 Vault.Deposited ─────────┼──▶ Ponder ──▶ Postgres ──▶ trade-executor ──▶ siphon-app leafIndexClient
-Vault.Swapped ───────────┘    (this repo)  siphon_indexer   /vault-index/*    + agent fallback
-                         │
-                         └──▶ subgraph/ ──▶ The Graph Studio ──▶ gateway ──▶ graph.ts / MCP / Builder
+Vault.Swapped ───────────┘    (this repo)  siphon_indexer   /vault-index/*    + Builder/MCP assess
 ```
-
 **The frontend never talks to Ponder directly in production.** It calls the trade-executor's
 `/vault-index/*` endpoints, which read the same Postgres database Ponder writes to. If the
 indexer is unreachable, the frontend falls back to the legacy `eth_getLogs` scan, so nothing
@@ -265,17 +257,12 @@ root against on-chain `getRoot()` / `rootExists()` — never trust size alone.
 | `GET` | `/vault-index/health` | — | `{ ok, leafCount }` |
 | `GET` | `/vault-index/leaves` | `chainId`, `asset` | `{ chainId, asset, count, leaves }` |
 | `GET` | `/vault-index/deposits` | `chainId`, `precommitment` | `{ found, amount?, commitment? }` |
-| `GET` | `/vault-index/anonymity-set` | `chainId`, `asset` | agent counters (Graph fallback) |
+| `GET` | `/vault-index/anonymity-set` | `chainId`, `asset` | agent counters (Builder / MCP) |
 | `GET` | `/vault-index/swaps` | `chainId`, `limit?` | recent `Vault.Swapped` |
 | `GET` | `/vault-index/balance` | `chainId` | protocol-wide deposit sums |
 
-This is what the browser / MCP fallback actually calls (CORS is already configured for the app origin, and the
+This is what the browser / MCP actually calls (CORS is already configured for the app origin, and the
 executor is already a public service).
-
-### 3. The Graph subgraph (optional agent-primary)
-
-See [`subgraph/README.md`](./subgraph/README.md). Deploy to Studio; point app `SIPHON_SUBGRAPH_ID` + `THE_GRAPH_API_KEY`.
-Ponder keeps serving the dapp regardless.
 
 ---
 

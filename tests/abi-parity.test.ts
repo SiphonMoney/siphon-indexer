@@ -1,5 +1,5 @@
 /**
- * Ponder + subgraph ABI stay in lockstep with IVault / IMerkleTree (structural).
+ * Ponder ABIs stay in lockstep with IVault / IMerkleTree (structural).
  * Topic0 equality vs Solidity is covered in siphon-app packages/sdk-ts
  * tests/graph.contract-events.test.ts (ethers).
  */
@@ -12,18 +12,24 @@ import { describe, it } from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
-const vaultAbi = JSON.parse(
-  readFileSync(join(root, "subgraph", "abis", "Vault.json"), "utf8"),
-) as Array<{
+// Evaluate the ABI array literal from the Ponder .ts export (unquoted JS keys).
+function loadPonderAbi(rel: string): Array<{
   type?: string;
   name?: string;
   inputs?: Array<{ name: string; type: string; indexed?: boolean; components?: unknown[] }>;
-}>;
-const merkleAbi = JSON.parse(
-  readFileSync(join(root, "subgraph", "abis", "MerkleTree.json"), "utf8"),
-) as Array<{ type?: string; name?: string; inputs?: unknown[] }>;
+}> {
+  const src = readFileSync(join(root, rel), "utf8");
+  const start = src.indexOf("[");
+  const end = src.lastIndexOf("]");
+  assert.ok(start >= 0 && end > start, `ABI array not found in ${rel}`);
+  // eslint-disable-next-line no-new-func
+  return new Function(`return (${src.slice(start, end + 1)})`)();
+}
 
-describe("subgraph ABIs", () => {
+const vaultAbi = loadPonderAbi("abis/Vault.ts");
+const merkleAbi = loadPonderAbi("abis/MerkleTree.ts");
+
+describe("Ponder ABIs", () => {
   it("include Deposited with indexed depositor", () => {
     const ev = vaultAbi.find((e) => e.name === "Deposited");
     assert.ok(ev);
@@ -87,7 +93,7 @@ describe("ponder handlers wire Swapped", () => {
     assert.ok(schema.includes("label: t.text().notNull()"));
   });
 
-  it("API exposes anonymity-set and swaps for Graph client fallback", () => {
+  it("API exposes anonymity-set and swaps for vault-index / agents", () => {
     const api = readFileSync(join(root, "src", "api", "index.ts"), "utf8");
     assert.ok(api.includes("/anonymity-set"));
     assert.ok(api.includes("/swaps"));
